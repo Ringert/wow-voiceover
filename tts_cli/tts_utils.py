@@ -15,6 +15,7 @@ from slpp import slpp as lua
 MODULE_NAME = 'AI_VoiceOverData_Vanilla'
 OUTPUT_FOLDER = MODULE_NAME + '/generated'
 SOUND_OUTPUT_FOLDER =  OUTPUT_FOLDER + '/sounds'
+SOUND_INPUT_FOLDER = OUTPUT_FOLDER + '/input-sounds'
 DATAMODULE_TABLE_GUARD_CLAUSE = 'if not VoiceOver or not VoiceOver.DataModules then return end'
 REPLACE_DICT = {'$b': '\n', '$B': '\n', '$n': 'adventurer', '$N': 'Adventurer',
                 '$C': 'Adventurer', '$c': 'adventurer', '$R': 'Traveler', '$r': 'traveler'}
@@ -98,7 +99,7 @@ class TTSProcessor:
             return
 
         voice_id = self.voice_map[voice]
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{1}"
         payload = {
             "text": text,
             "voice_settings": {
@@ -364,3 +365,4 @@ class TTSProcessor:
 
         write_sound_length_table_lua(MODULE_NAME, SOUND_OUTPUT_FOLDER, OUTPUT_FOLDER)
         print("Updated sound_length_table.lua")
+        

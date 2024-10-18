@@ -7,24 +7,24 @@ def write_model_data():
     query = '''
     with data112 as (
         with normalized_models(entry, display_id, name) as (
-            select entry, display_id1, name from mangos.creature_template where display_id1
+            select entry, display_id1, name from creature_template where display_id1
             union distinct
-            select entry, display_id2, name from mangos.creature_template where display_id2
+            select entry, display_id2, name from creature_template where display_id2
             union distinct
-            select entry, display_id3, name from mangos.creature_template where display_id3
+            select entry, display_id3, name from creature_template where display_id3
             union distinct
-            select entry, display_id4, name from mangos.creature_template where display_id4
+            select entry, display_id4, name from creature_template where display_id4
         )
         select distinct modelname, entry, name from (
-            select id from mangos.creature_questrelation
+            select id from creature_questrelation
             union distinct
-            select id from mangos.creature_involvedrelation
+            select id from creature_involvedrelation
             union distinct
-            select entry from mangos.creature_template where gossip_menu_id
+            select entry from creature_template where gossip_menu_id
         ) sources
         left join normalized_models nm on nm.entry=sources.id
-        left join mangos.db_CreatureDisplayInfo cdi on cdi.ID=nm.display_id
-        left join mangos.db_CreatureModelData cmd on cmd.ID=cdi.ModelID -- 112_CreatureModelData.sql
+        left join db_CreatureDisplayInfo cdi on cdi.ID=nm.display_id
+        left join db_CreatureModelData cmd on cmd.ID=cdi.ModelID -- 112_CreatureModelData.sql
     ),
     data335 as (
         with normalized_models(entry, display_id, name) as (

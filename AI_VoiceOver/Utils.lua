@@ -113,6 +113,7 @@ end
 function Utils:PlaySound(soundData)
     local channel = Enums.SoundChannel:GetName(Addon.db.profile.Audio.SoundChannel)
     local willPlay, handle = PlaySoundFile(soundData.filePath, channel)
+    Debug:Print(format("Play sound: %s", soundData.fileName))
     soundData.handle = handle
 end
 
@@ -121,6 +122,7 @@ end
 --- - Overridden in 2.4.3 and 3.3.5 due to the custom functionality to play the sound on the music channel instead.
 ---@param soundData SoundData
 function Utils:StopSound(soundData)
+    Debug:Print(format("Stop sound: %s", soundData.fileName))
     StopSound(soundData.handle)
     soundData.handle = nil
 end

@@ -37,3 +37,26 @@ def language_code_to_language_number(local_code: str) -> int:
             return 8
         case _:
             raise Exception("Unsupported local code!")
+        
+def language_number_to_tts_lang(language_number: int) -> str:
+    match language_number:
+        case 0:
+            return "en"
+        case 1:
+            return "ko"
+        case 2:
+            return "fr"
+        case 3:
+            return "de"
+        case 4:    # Simplified chinese
+            return "zh"
+        case 5:    # Traditional chinese
+            return "zh"
+        case 6:    # European spanish
+            return "es"
+        case 7:    # Mexican spanish
+            return "es"
+        case 8:
+            return "zu"
+        case _:
+            raise Exception("Unsupported local code!")

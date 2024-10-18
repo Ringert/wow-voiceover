@@ -457,6 +457,8 @@ function DataModules:PrepareSound(soundData)
                     soundData.fileName)
                 soundData.length = length
                 soundData.module = module
+
+                Debug:Print(format("Sound length: %s", length))
                 return true
             end
         end

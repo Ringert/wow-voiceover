@@ -1,5 +1,6 @@
 import pymysql
 import pandas as pd
+import json
 from tts_cli.env_vars import MYSQL_HOST, MYSQL_PORT, MYSQL_PASSWORD, MYSQL_USER, MYSQL_DATABASE
 
 
@@ -471,12 +472,12 @@ SELECT
     id,
     text as original_text
 FROM ALL_DATA
-    LEFT JOIN mangos.locales_quest          lq  ON lq .entry = quest
-    LEFT JOIN mangos.locales_broadcast_text lbt ON lbt.entry = broadcast_text_id
-    LEFT JOIN mangos.locales_creature       lc  ON lc .entry = id AND type = 'creature'
-    LEFT JOIN mangos.locales_gameobject     lg  ON lg .entry = id AND type = 'gameobject'
-    LEFT JOIN mangos.locales_item           li  ON li .entry = id AND type = 'item'
-    LEFT JOIN mangos.quest_greeting         qg  ON qg .entry = id AND qg.type = (CASE ALL_DATA.type WHEN 'creature' THEN 0 WHEN 'gameobject' THEN 1 ELSE -1 END)
+    LEFT JOIN locales_quest          lq  ON lq .entry = quest
+    LEFT JOIN locales_broadcast_text lbt ON lbt.entry = broadcast_text_id
+    LEFT JOIN locales_creature       lc  ON lc .entry = id AND type = 'creature'
+    LEFT JOIN locales_gameobject     lg  ON lg .entry = id AND type = 'gameobject'
+    LEFT JOIN locales_item           li  ON li .entry = id AND type = 'item'
+    LEFT JOIN quest_greeting         qg  ON qg .entry = id AND qg.type = (CASE ALL_DATA.type WHEN 'creature' THEN 0 WHEN 'gameobject' THEN 1 ELSE -1 END)
         '''
 
     with db.cursor() as cursor:
@@ -484,7 +485,57 @@ FROM ALL_DATA
         data = cursor.fetchall()
         columns = [desc[0] for desc in cursor.description]
 
+    # Liste von Dictionaries erstellen (Spaltennamen zu Werten zuordnen)
+    result = [dict(zip(columns, row)) for row in data]
+
+    # Ergebnisse als JSON-Datei speichern
+    with open('output.json', 'w', encoding='utf-8') as f:
+        json.dump(result, f, ensure_ascii=False, indent=4)
+
     db.close()
     df = pd.DataFrame(data, columns=columns)
 
     return df
+
+def fix_german_for_tts():
+    fix_sentences_for('locales_quest', 'Title_loc3')
+    fix_sentences_for('locales_quest', 'Details_loc3')
+    fix_sentences_for('locales_quest', 'Objectives_loc3')
+    fix_sentences_for('locales_quest', 'OfferRewardText_loc3')
+    fix_sentences_for('locales_quest', 'RequestItemsText_loc3')
+    fix_sentences_for('locales_quest', 'EndText_loc3')
+    fix_sentences_for('locales_quest', 'ObjectiveText1_loc3')
+    fix_sentences_for('locales_quest', 'ObjectiveText2_loc3')
+    fix_sentences_for('locales_quest', 'ObjectiveText3_loc3')
+    fix_sentences_for('locales_quest', 'ObjectiveText4_loc3')
+    fix_sentences_for('locales_broadcast_text', 'male_text_loc3')
+    fix_sentences_for('locales_broadcast_text', 'female_text_loc3')
+    fix_sentences_for('locales_creature', 'name_loc3')
+    fix_sentences_for('locales_gameobject', 'name_loc3')
+    fix_sentences_for('locales_item', 'name_loc3')
+    fix_sentences_for('locales_item', 'description_loc3')
+    fix_sentences_for('quest_greeting', 'content_loc3')
+
+        
+def fix_sentences_for(table_name, field_name):
+    replace_txt(table_name, field_name,'$B$B',' ')
+    replace_txt(table_name, field_name,' .','')
+    replace_txt(table_name, field_name,'\\n','')
+    replace_txt(table_name, field_name,'  ',' ')
+    replace_txt(table_name, field_name,', $C','')
+    replace_txt(table_name, field_name,', $c','')
+    replace_txt(table_name, field_name,'ein $g Mann : Frau;','jemand')
+
+def replace_txt(table_name,field_name,old_text,new_text):
+    db = make_connection()
+    sql_query = f'''
+UPDATE {table_name}
+SET {field_name} = REPLACE({field_name}, '{old_text}', '{new_text}')
+WHERE {field_name} LIKE CONCAT('%{old_text}%');
+        '''
+    print(sql_query);
+
+    with db.cursor() as cursor:
+        cursor.execute(sql_query)
+
+    db.close()
