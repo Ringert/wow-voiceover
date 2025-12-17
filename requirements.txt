@@ -1,7 +1,7 @@
 autopep8==2.0.2
 matplotlib==3.7.0
 mutagen==1.47.0
-numpy==1.26.4
+numpy==1.22.0
 pandas==1.4
 Pillow==9.4.0
 prompt-toolkit==3.0.38
@@ -13,3 +13,7 @@ tqdm==4.64.1
 cryptography
 TTS==0.22.0
 pydub==0.25.1
+transformers==4.33.0
+torch==2.5.1
+torchvision=0.20.1
+torchaudio=2.5.1

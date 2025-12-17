@@ -13,7 +13,9 @@ from TTS.api import TTS
 from pydub import AudioSegment
 import json
 import random
-
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from tqdm import tqdm
+import math
 
 # TODO: make module name a cli arg when we do other expansions
 MODULE_NAME = 'AI_VoiceOverData_Vanilla'
@@ -21,8 +23,10 @@ OUTPUT_FOLDER = MODULE_NAME + '/generated'
 SOUND_OUTPUT_FOLDER =  OUTPUT_FOLDER + '/sounds'
 SOUND_INPUT_FOLDER = OUTPUT_FOLDER + '/input-sounds'
 DATAMODULE_TABLE_GUARD_CLAUSE = 'if not VoiceOver or not VoiceOver.DataModules then return end'
-REPLACE_DICT = {'$b': '\n', '$B': '\n', '$n': 'adventurer', '$N': 'Adventurer',
-                '$C': 'Adventurer', '$c': 'adventurer', '$R': 'Traveler', '$r': 'traveler'}
+REPLACE_DICT = {'$b': '\n', '$B': '\n', '$n': 'Abenteurer', '$N': 'Abenteurer',
+                '$C': 'Abenteurer', '$c': 'Abenteurer', '$R': 'Reisender', '$r': 'Reisender',
+                'Stormwind': 'Sturmwind', 'Thunder Bluff': 'Donnerfels', 'Thunderbluff': 'Donnerfels', 
+                'Undercity': 'Unterstadt', 'Ironforge': 'Eisenschmiede'}
 
 def get_hash(text):
     hash_object = hashlib.md5(text.encode())
@@ -73,89 +77,78 @@ def convert_wav_to_mp3(input_file, output_file):
     audio = AudioSegment.from_wav(input_file)
     audio.export(output_file, format="mp3", bitrate="64k")
 
+import json
+import random
+from collections import defaultdict
+
 def create_voice_clone_map():
-    # Lade die Daten aus der Eingabe-JSON-Datei
-    with open('./sql.json', 'r', encoding='utf-8') as infile:
-        data = json.load(infile)
-    with open('./gossip.json', 'r', encoding='utf-8') as infile:
-        gossip = json.load(infile)
-    with open('./sound_length.json', 'r', encoding='utf-8') as infile:
-        length = json.load(infile)
+    minAudioLength = 7.0
+    maxAudioLength = 25.0
+    # --- Laden ---
+    with open('./sql.json', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    with open('./gossip.json', 'r', encoding='utf-8') as f:
+        gossip = json.load(f)
+    with open('./sound_length.json', 'r', encoding='utf-8') as f:
+        length = json.load(f)
 
-    # Neue Liste für die gefilterten Daten
-    soundFiles = {}
+    print('processing data')
 
-    # Gehe jeden Eintrag in den Daten durch
+    # name -> {'quests': set(), 'gossip': set()}
+    soundFiles = defaultdict(lambda: {'quests': set(), 'gossip': set()})
+
+    # --- EIN Durchlauf über data ---
     for entry in data:
-        if not entry['name'] in soundFiles:
-            soundFiles[entry['name']] = {
-                'quests': [],
-                'gossip': []
-            }
+        name = entry['name']
+        source = entry['source']
 
-        if entry['source'] == 'accept' or entry['source'] == 'complete':
-            soundFiles[entry['name']]['quests'].append(entry['quest'] + '-' + entry['source'])
-        elif entry['source'] == 'gossip':
-            if entry['name'] in gossip:
-                for key, value in gossip[entry['name']].items():
-                    soundFiles[entry['name']]['gossip'].append(value)
+        if source in ('accept', 'complete'):
+            value = f"{entry['quest']}-{source}"
+            if length.get(value, 0) > minAudioLength:
+                soundFiles[name]['quests'].add(value)
 
-    # Neue Liste für die gefilterten Daten
-    filtered = {}
+        elif source == 'gossip' and name in gossip:
+            for value in gossip[name].values():
+                if length.get(value, 0) > minAudioLength:
+                    soundFiles[name]['gossip'].add(value)
 
-    # Gehe jeden Eintrag in den Daten durch
-    for entry in data:
-        filtered[entry['name']] = {
-            'quests': [],
-            'gossip': []
-        }
-
-        for value in soundFiles[entry['name']]['quests']:
-            if value in length and length[value] > 37.0:
-                filtered[entry['name']]['quests'].append(value)
-        for value in soundFiles[entry['name']]['gossip']:
-            if value in length and length[value] > 37.0:
-                filtered[entry['name']]['gossip'].append(value)
-
-    genderRaceMap = {}
+    # gender-race -> set(soundpaths)
+    genderRaceMap = defaultdict(set)
 
     for entry in data:
-        key = str(entry['DisplayRaceID']) + '-' + str(entry['DisplaySexID'])
+        name = entry['name']
+        key = f"{entry['DisplayRaceID']}-{entry['DisplaySexID']}"
 
-        for value in filtered[entry['name']]['quests']:
-            if not key in genderRaceMap:
-                genderRaceMap[key] = [];
-            
-            if not value in genderRaceMap[key]:
-                genderRaceMap[key].append('quests/' + value)
+        for value in soundFiles[name]['quests']:
+            genderRaceMap[key].add(f"quests/{value}")
 
-        for value in filtered[entry['name']]['gossip']:
-            if not key in genderRaceMap:
-                genderRaceMap[key] = [];
-            
-            if not value in genderRaceMap[key]:
-                genderRaceMap[key].append('gossip/' + value)
+        for value in soundFiles[name]['gossip']:
+            genderRaceMap[key].add(f"gossip/{value}")
 
+    # --- Voice Clone Map ---
     voiceCloneFile = {}
 
     for entry in data:
-         genderRaceKey = str(entry['DisplayRaceID']) + '-' + str(entry['DisplaySexID'])
+        name = entry['name']
+        key = f"{entry['DisplayRaceID']}-{entry['DisplaySexID']}"
 
-         if genderRaceKey == '10-1':
-             genderRaceKey = "5-1"
+        if key == '10-1':
+            key = '5-1'
 
-         if not entry['name'] in voiceCloneFile:
-            voiceCloneFile[entry['name']] = random.choice(genderRaceMap[genderRaceKey])
+        if name not in voiceCloneFile:
+            # random.choice braucht eine Sequenz
+            voiceCloneFile[name] = random.choice(tuple(genderRaceMap[key]))
 
-    # Schreibe die gefilterten Daten in die Ausgabe-JSON-Datei
-    with open('voice-clone-map.json', 'w', encoding='utf-8') as outfile:
-        json.dump(voiceCloneFile, outfile, ensure_ascii=False, indent=4)
+    # --- Schreiben ---
+    with open('voice-clone-map.json', 'w', encoding='utf-8') as f:
+        json.dump(voiceCloneFile, f, ensure_ascii=False, indent=4)
 
-    print(f"Gefilterte Daten erfolgreich in gespeichert.")
+    print("Gefilterte Daten erfolgreich gespeichert.")
 
 class TTSProcessor:
     def __init__(self, tts_lang):
         self.tts_lang = tts_lang
+        print('TTSProcessor initialized with language: ', tts_lang)
         
         # Lade die Daten aus der Eingabe-JSON-Datei
         with open('./voice-clone-map.json', 'r', encoding='utf-8') as infile:
@@ -172,31 +165,31 @@ class TTSProcessor:
         inconvpath = os.path.join(SOUND_INPUT_FOLDER, self.voiceCloneMap[name] + '.wav')
 
         if os.path.isfile(outconvpath) and forceGen is not True:
-            result = "duplicate generation, skipping"
-            return
+            return "duplicate generation, skipping"
         
         if os.path.isfile(inpath) is not True:
-            result = "can't find input file for voice cloning, skipping"
-            return
+            return f"can't find input file for voice cloning, skipping: {inpath}"
         
         if os.path.isfile(inconvpath) is not True:
             convert_mp3_to_wav(inpath, inconvpath)
 
         try:
             # Init TTS
-            tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=True)
+            tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2")
+
+            short_text = len(text) < 250
 
             # Text to speech to a file
-            tts.tts_to_file(text=text, speaker_wav=inpath, language=self.get_tts_lang(), speed=1.0, file_path=outpath)
+            tts.tts_to_file(text=text, speaker_wav=inconvpath, language=self.get_tts_lang(), speed=0.98, file_path=outpath, split_sentences=not short_text)
 
             convert_wav_to_mp3(outpath, outconvpath)
             os.remove(outpath)
 
             result = f"Audio file with tts xtts_v2 lang {self.get_tts_lang()} saved successfully!: {outpath}"
-            print(result)
-        except:
-            result = f"Error: unable to save audio file {outpath}"
-            print(result)
+        except Exception as e:
+            result = f"Error: unable to save audio file {outpath}: {e}"
+            
+        print(result)
 
         return result
         
@@ -248,41 +241,94 @@ class TTSProcessor:
         return new_df
 
 
-    def process_row(self, row_tuple):
-        row = pd.Series(row_tuple[1:], index=row_tuple._fields[1:])
-        custom_message = ""
-        if "$" in row["cleanedText"] or "<" in row["cleanedText"] or ">" in row["cleanedText"]:
-            custom_message = f'skipping due to invalid chars: {row["cleanedText"]}'
-        elif row['source'] == "progress": # skip progress text (progress text is usually better left unread since its always played before quest completion)
-            custom_message = f'skipping progress text: {row["quest"]}-{row["source"]}'
+    def process_row(self, row):
+        if "$" in row.cleanedText or "<" in row.cleanedText or ">" in row.cleanedText:
+            return f'skipping due to invalid chars: {row.cleanedText}'
+        elif row.source == "progress": # skip progress text (progress text is usually better left unread since its always played before quest completion)
+            return f'skipping progress text: {row.quest}-{row.source}'
         else:
-            self.tts_row(row)
-        return custom_message
+            return self.tts_row(row)
 
     def tts_row(self, row):
-        tts_text = row['cleanedText']
-        file_name =  f'{row["quest"]}-{row["source"]}' if row['quest'] else f'{row["templateText_race_gender_hash"]}'
-        if row['player_gender'] is not None:
-            file_name = row['player_gender'] + '-'+ file_name
+        tts_text = row.cleanedText
+        file_name =  f'{row.quest}-{row.source}' if row.quest else f'{row.templateText_race_gender_hash}'
+        if row.player_gender is not None:
+            file_name = row.player_gender+ '-'+ file_name
         file_name = file_name
-        subfolder = 'quests' if row['quest'] else 'gossip'
-        self.tts(row['name'], tts_text, file_name, subfolder)
+        subfolder = 'quests' if row.quest else 'gossip'
+        return self.tts(row.name, tts_text, file_name, subfolder)
 
     def create_output_dirs(self):
         create_output_subdirs('')
         create_output_subdirs('quests')
         create_output_subdirs('gossip')
 
-    def process_rows_in_parallel(self, df, row_proccesing_fn, max_workers=5):
+    def chunkify(self, df, chunk_size):
+        for i in range(0, len(df), chunk_size):
+            yield df.iloc[i:i + chunk_size]
+
+    def process_chunk(self, df_chunk, row_processing_fn):
+        last_message = None
+
+        for row in df_chunk.itertuples(index=False):
+            last_message = row_processing_fn(row)
+
+        return len(df_chunk), last_message
+
+
+    def process_rows_in_parallel(self, df, row_processing_fn, max_workers=None, chunk_size=50):
+        total_rows = len(df)
+
+        bar_format = (
+            '{l_bar}{bar}| {n_fmt}/{total_fmt} '
+            '[{elapsed}<{remaining}, {rate_fmt}] {postfix}'
+        )
+
+        with tqdm(
+            total=total_rows,
+            unit='rows',
+            ncols=100,
+            desc='Generating Audio',
+            bar_format=bar_format,
+            dynamic_ncols=True
+        ) as pbar:
+
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+
+                futures = [
+                    executor.submit(
+                        self.process_chunk,
+                        chunk,
+                        row_processing_fn
+                    )
+                    for chunk in self.chunkify(df, chunk_size)
+                ]
+
+                for future in as_completed(futures):
+                    processed_rows, last_message = future.result()
+                    pbar.update(processed_rows)
+                    if last_message:
+                        pbar.set_postfix_str(last_message)
+
+    def process_rows_serial(self, df, row_processing_fn):
         total_rows = len(df)
         bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}] {postfix}'
 
-        with tqdm(total=total_rows, unit='rows', ncols=100, desc='Generating Audio', ascii=False, bar_format=bar_format, dynamic_ncols=True) as pbar:
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                for row, custom_message in zip(df.iterrows(), executor.map(row_proccesing_fn, df.itertuples())):
-                    pbar.set_postfix_str(custom_message)
-                    pbar.update(1)
+        with tqdm(
+            total=total_rows,
+            unit='rows',
+            ncols=100,
+            desc='Generating Audio',
+            ascii=False,
+            bar_format=bar_format,
+            dynamic_ncols=True
+        ) as pbar:
 
+            for row in df.itertuples(index=False):
+                custom_message = row_processing_fn(row)
+                if custom_message:
+                    pbar.set_postfix_str(custom_message)
+                pbar.update(1)
 
     def write_gossip_file_lookups_table(self, df, module_name, type, table, filename):
         output_file = OUTPUT_FOLDER + f"/{filename}.lua"
@@ -407,11 +453,9 @@ class TTSProcessor:
 
         print(f"Finished writing {filename}.lua")
 
-
-
     def tts_dataframe(self, df):
         self.create_output_dirs()
-        self.process_rows_in_parallel(df, self.process_row, max_workers=1)
+        self.process_rows_serial(df, self.process_row)
         print("Audio finished generating.")
 
     def generate_lookup_tables(self, df):

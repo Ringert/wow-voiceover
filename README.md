@@ -24,6 +24,12 @@ Contribute voices on [allvoice.ai](https://allvoice.ai) so I can give each NPC a
 1. Make a python virtual environment. (make sure to source it after creating)
 ```bash
 python -m venv .venv
+source .venv/bin/activate
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init --path)"
+eval "$(pyenv virtualenv-init -)"
+
 ```
 2. Install the required packages.
 ```bash

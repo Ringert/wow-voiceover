@@ -341,7 +341,7 @@ class TTSProcessor:
 
     def tts_dataframe(self, df, selected_voices):
         self.create_output_dirs()
-        self.process_rows_in_parallel(df, self.process_row, selected_voices, max_workers=5)
+        self.process_rows_in_parallel(df, self.process_row, selected_voices, max_workers=15)
         print("Audio finished generating.")
 
     def generate_lookup_tables(self, df):

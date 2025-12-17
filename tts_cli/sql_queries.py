@@ -518,13 +518,10 @@ def fix_german_for_tts():
 
         
 def fix_sentences_for(table_name, field_name):
-    replace_txt(table_name, field_name,'$B$B',' ')
-    replace_txt(table_name, field_name,' .','')
-    replace_txt(table_name, field_name,'\\n','')
-    replace_txt(table_name, field_name,'  ',' ')
-    replace_txt(table_name, field_name,', $C','')
-    replace_txt(table_name, field_name,', $c','')
-    replace_txt(table_name, field_name,'ein $g Mann : Frau;','jemand')
+    replacements = get_replacements()
+
+    for old, new in replacements:
+        replace_txt(table_name, field_name, old, new)
 
 def replace_txt(table_name,field_name,old_text,new_text):
     db = make_connection()
@@ -539,3 +536,18 @@ WHERE {field_name} LIKE CONCAT('%{old_text}%');
         cursor.execute(sql_query)
 
     db.close()
+
+def get_replacements():
+    return [
+        ('$B$B', ' '),
+        ('$b$b', ' '),
+        ('$B $B', ' '),
+        (' .', ''),
+        ('\\n', ''),
+        ('  ', ' '),
+        (', $C', ''),
+        (', $c', ''),
+        ('ein $g Mann : Frau;', 'jemand'),
+        ('Adventurer', 'Abenteurer'),
+        ('<UNUSED> ', ''),
+    ]

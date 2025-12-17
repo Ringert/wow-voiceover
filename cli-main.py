@@ -4,11 +4,14 @@ from tts_cli.tts_cloning import TTSProcessor, create_voice_clone_map
 from tts_cli.init_db import download_and_extract_latest_db_dump, import_sql_files_to_database
 from tts_cli.wrath_model_extraction import write_model_data
 from tts_cli import utils
+import warnings
+
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     description="Text-to-Speech CLI for WoW dialog")
     
-parser.add_argument("--lang", default="enUS")
+parser.add_argument("--lang", default="deDE")
 
 subparsers = parser.add_subparsers(dest="mode", help="Available modes")
 subparsers.add_parser("init-db", help="Initialize the database")

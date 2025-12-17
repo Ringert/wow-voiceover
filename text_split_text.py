@@ -56,7 +56,7 @@ def get_spacy_lang(lang):
 def main():
     parser = argparse.ArgumentParser(description="Split text into groups of sentences.")
     parser.add_argument('--text', type=str, required=True, help='The input text to split')
-    parser.add_argument('--lang', type=str, default='en', help='Language of the text (default: en)')
+    parser.add_argument('--lang', type=str, default='de', help='Language of the text (default: de)')
     parser.add_argument('--length', type=int, default=250, help='Maximum split length (default: 250)')
 
     args = parser.parse_args()
