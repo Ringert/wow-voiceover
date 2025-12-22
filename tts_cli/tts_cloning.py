@@ -187,8 +187,13 @@ class TTSProcessor:
             short_text = len(text) < 250
             xtreme_short_text = len(text) < 80
 
+            if xtreme_short_text is True:
+                speed = 0.95
+            else:
+                speed = 1
+
             # Text to speech to a file
-            tts.tts_to_file(text=text, speaker_wav=inconvpath, language=self.get_tts_lang(), speed=1.12, file_path=outpath, split_sentences=not short_text)
+            tts.tts_to_file(text=text, speaker_wav=inconvpath, language=self.get_tts_lang(), speed=speed, file_path=outpath, split_sentences=not short_text)
 
             convert_wav_to_mp3(outpath, outconvpath)
             os.remove(outpath)
