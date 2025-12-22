@@ -17,18 +17,22 @@ Contribute voices on [allvoice.ai](https://allvoice.ai) so I can give each NPC a
 ## Below is for developers only. Go to [releases](https://github.com/mrthinger/wow-voiceover/releases) if youre looking to install the addon.
 
 ## Requirements
-- python 3.10.19
 - docker (for the database)
+- build-essential
+- pyenv (for python 3.10.19)
+
 
 ## Installation
 1. Make a python virtual environment. (make sure to source it after creating)
 ```bash
+echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(pyenv init --path)"' >> ~/.bashrc
+echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
+source ~/.bashrc
+
 python -m venv .venv
 source .venv/bin/activate
-export PYENV_ROOT="$HOME/.pyenv"
-export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init --path)"
-eval "$(pyenv virtualenv-init -)"
+
 
 ```
 2. Install the required packages.
@@ -37,7 +41,11 @@ pip install -r requirements.txt
 ```
 
 3. Download, Build and Install
-https://github.com/Ringert/TTS-Python-3-10-15-ROCm-6-1-3
+```bash
+git clone https://github.com/Ringert/TTS-Python-3-10-15-ROCm-6-1-3
+cd TTS-Python-3-10-15-ROCm-6-1-3
+pip install -e .[all,dev,notebooks]
+```
 
 4. Copy the .env.example file to .env and fill in your ElevenLabs API Key and database credentials. The included database values are fine if you're going to use the docker-compose file.
 ```bash
@@ -51,6 +59,15 @@ docker compose up -d
 ```bash
 python cli-main.py init-db
 ```
+
+## New Terminal
+```bash
+source .venv/bin/activate
+export PATH="$HOME/.pyenv/bin:$PATH"
+eval "$(pyenv init --path)"
+eval "$(pyenv virtualenv-init -)"
+```
+
 
 ## Voice Setup
 The generation scripts assume you have voices created in Elevenlabs named in the format `race-gender`. For the exact races the script checks your elevenlabs account for, refer to `tts_cli\consts.py`. Gender will always either be `male` or `female`. ex: `orc-male`. You will need to create your own voice clones. A good place to get samples is @ https://www.wowhead.com/sounds/npc-greetings/name:orc 
