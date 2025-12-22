@@ -20,6 +20,7 @@ Contribute voices on [allvoice.ai](https://allvoice.ai) so I can give each NPC a
 - docker (for the database)
 - build-essential
 - pyenv (for python 3.10.19)
+- ffmpeg
 
 
 ## Installation
