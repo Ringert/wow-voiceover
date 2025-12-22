@@ -25,10 +25,11 @@ OUTPUT_FOLDER = MODULE_NAME + '/generated'
 SOUND_OUTPUT_FOLDER =  OUTPUT_FOLDER + '/sounds'
 SOUND_INPUT_FOLDER = OUTPUT_FOLDER + '/input-sounds'
 DATAMODULE_TABLE_GUARD_CLAUSE = 'if not VoiceOver or not VoiceOver.DataModules then return end'
+# TODO: use replace map for each language.
 REPLACE_DICT = {'$B $B': '', '$b': '\n', '$B': '\n', '$n': 'Abenteurer', '$N': 'Abenteurer',
                 '$C': 'Champion', '$c': 'Champion', '$R': 'Reisender', '$r': 'Reisender', 'ß': 'ss',
                 'Stormwind': 'Sturmwind', 'Thunder Bluff': 'Donnerfels', 'Thunderbluff': 'Donnerfels', 
-                'Undercity': 'Unterstadt', 'Ironforge': 'Eisenschmiede', 'Alteractal': 'Alteraktal', 'Lordaeron': 'Lorderon', 'Bronzebeard': 'Bronzebart', 'Ragefireabgrund': 'Flammenschlund'}
+                'Undercity': 'Unterstadt', 'Ironforge': 'Eisenschmiede', 'Alteractal': 'Alteraktal', 'Lordaeron': 'Lorderon', 'Bronzebeard': 'Bronzebart', 'Ragefireabgrund': 'Flammenschlund', 'Stratholme': 'Stratholm'}
 
 def get_hash(text):
     hash_object = hashlib.md5(text.encode())
