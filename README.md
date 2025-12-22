@@ -17,7 +17,7 @@ Contribute voices on [allvoice.ai](https://allvoice.ai) so I can give each NPC a
 ## Below is for developers only. Go to [releases](https://github.com/mrthinger/wow-voiceover/releases) if youre looking to install the addon.
 
 ## Requirements
-- python 3.10+
+- python 3.10.19
 - docker (for the database)
 
 ## Installation
@@ -35,15 +35,19 @@ eval "$(pyenv virtualenv-init -)"
 ```bash
 pip install -r requirements.txt
 ```
-3. Copy the .env.example file to .env and fill in your ElevenLabs API Key and database credentials. The included database values are fine if you're going to use the docker-compose file.
+
+3. Download, Build and Install
+https://github.com/Ringert/TTS-Python-3-10-15-ROCm-6-1-3
+
+4. Copy the .env.example file to .env and fill in your ElevenLabs API Key and database credentials. The included database values are fine if you're going to use the docker-compose file.
 ```bash
 cp .env.example .env
 ```
-4. Start the MySQL DB
+5. Start the MySQL DB
 ```bash
 docker compose up -d
 ```
-5. Seed the MySQL DB
+6. Seed the MySQL DB
 ```bash
 python cli-main.py init-db
 ```

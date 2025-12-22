@@ -16,6 +16,8 @@ import random
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 import math
+from TTS.tts.configs.xtts_config import XttsConfig
+from TTS.tts.models.xtts import Xtts
 
 # TODO: make module name a cli arg when we do other expansions
 MODULE_NAME = 'AI_VoiceOverData_Vanilla'
@@ -23,10 +25,10 @@ OUTPUT_FOLDER = MODULE_NAME + '/generated'
 SOUND_OUTPUT_FOLDER =  OUTPUT_FOLDER + '/sounds'
 SOUND_INPUT_FOLDER = OUTPUT_FOLDER + '/input-sounds'
 DATAMODULE_TABLE_GUARD_CLAUSE = 'if not VoiceOver or not VoiceOver.DataModules then return end'
-REPLACE_DICT = {'$b': '\n', '$B': '\n', '$n': 'Abenteurer', '$N': 'Abenteurer',
-                '$C': 'Abenteurer', '$c': 'Abenteurer', '$R': 'Reisender', '$r': 'Reisender',
+REPLACE_DICT = {'$B $B': '', '$b': '\n', '$B': '\n', '$n': 'Abenteurer', '$N': 'Abenteurer',
+                '$C': 'Champion', '$c': 'Champion', '$R': 'Reisender', '$r': 'Reisender', 'ß': 'ss',
                 'Stormwind': 'Sturmwind', 'Thunder Bluff': 'Donnerfels', 'Thunderbluff': 'Donnerfels', 
-                'Undercity': 'Unterstadt', 'Ironforge': 'Eisenschmiede'}
+                'Undercity': 'Unterstadt', 'Ironforge': 'Eisenschmiede', 'Alteractal': 'Alteraktal', 'Lordaeron': 'Lorderon', 'Bronzebeard': 'Bronzebart', 'Ragefireabgrund': 'Flammenschlund'}
 
 def get_hash(text):
     hash_object = hashlib.md5(text.encode())
@@ -148,7 +150,7 @@ def create_voice_clone_map():
 class TTSProcessor:
     def __init__(self, tts_lang):
         self.tts_lang = tts_lang
-        print('TTSProcessor initialized with language: ', tts_lang)
+        print('TTSProcessor initialized with language: ', self.get_tts_lang())
         
         # Lade die Daten aus der Eingabe-JSON-Datei
         with open('./voice-clone-map.json', 'r', encoding='utf-8') as infile:
@@ -174,13 +176,19 @@ class TTSProcessor:
             convert_mp3_to_wav(inpath, inconvpath)
 
         try:
+            text = text.strip()
             # Init TTS
-            tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2")
+            # Most likely downloaded to ~/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2 -> to improve model output for certain languages edit the config.json file. 
+            # This works only with my custom TTS Projekt - otherwise the model will be redownloaded
+            # may use the tts_cli/model_config/xttsv2.json instead of given config.json (its improved for german language output)
+            # TODO: Add new parameter to TTS initialization to pass custom config.
+            tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=False)
 
             short_text = len(text) < 250
+            xtreme_short_text = len(text) < 80
 
             # Text to speech to a file
-            tts.tts_to_file(text=text, speaker_wav=inconvpath, language=self.get_tts_lang(), speed=0.98, file_path=outpath, split_sentences=not short_text)
+            tts.tts_to_file(text=text, speaker_wav=inconvpath, language=self.get_tts_lang(), speed=1.12, file_path=outpath, split_sentences=not short_text)
 
             convert_wav_to_mp3(outpath, outconvpath)
             os.remove(outpath)
