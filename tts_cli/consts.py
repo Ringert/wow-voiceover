@@ -39,11 +39,16 @@ RACE_DICT = {
     36: 'magharorc',
     37: 'mechagnome',
     52: 'dracthyr',
-    70: 'dracthyr'
+    70: 'dracthyr',
+    9901: 'thrall',
+    9902: 'sylvanas',
+    9903: 'nathanos',
+    9904: 'tirion',
+    9905: 'baine',
+    9906: 'saurfang',
+    9907: 'jaina',
+    9908: 'magni'
 }
-
-
-
 
 GENDER_DICT = {0: 'male', 1: 'female'}
 

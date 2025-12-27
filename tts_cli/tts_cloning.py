@@ -26,10 +26,72 @@ SOUND_OUTPUT_FOLDER =  OUTPUT_FOLDER + '/sounds'
 SOUND_INPUT_FOLDER = OUTPUT_FOLDER + '/input-sounds'
 DATAMODULE_TABLE_GUARD_CLAUSE = 'if not VoiceOver or not VoiceOver.DataModules then return end'
 # TODO: use replace map for each language.
-REPLACE_DICT = {'$B $B': '', '$b': '\n', '$B': '\n', '$n': 'Abenteurer', '$N': 'Abenteurer',
-                '$C': 'Champion', '$c': 'Champion', '$R': 'Reisender', '$r': 'Reisender', 'ß': 'ss',
-                'Stormwind': 'Sturmwind', 'Thunder Bluff': 'Donnerfels', 'Thunderbluff': 'Donnerfels', 
-                'Undercity': 'Unterstadt', 'Ironforge': 'Eisenschmiede', 'Alteractal': 'Alteraktal', 'Lordaeron': 'Lorderon', 'Bronzebeard': 'Bronzebart', 'Ragefireabgrund': 'Flammenschlund', 'Stratholme': 'Stratholm'}
+REPLACE_DICT = {
+    # Placeholder
+    '$B $B': '',
+    '$b': '\n',
+    '$B': '\n',
+    '$n': 'Abenteurer',
+    '$N': 'Abenteurer',
+    '$C': 'Champion',
+    '$c': 'Champion',
+    '$R': 'Reisender',
+    '$r': 'Reisender',
+
+    # Cities & Zones
+    'Stormwind': 'Sturmwind',
+    'Thunder Bluff': 'Donnerfels',
+    'Thunderbluff': 'Donnerfels',
+    'Undercity': 'Unterstadt',
+    'Ironforge': 'Eisenschmiede',
+    'Silvermoon': 'Silbermond',
+
+    'Alterac': 'Alterak',
+    'Alteractal': 'Alteraktal',
+    'Arathi': 'Arati',
+    'Ashenvale': 'Eschenwald',
+    'Stranglethorn': 'Schlingendorntal',
+    'Barrens': 'Brachland',
+    'Mulgore': 'Mullgor',
+    'Lordaeron': 'Lorderon',
+    "Quel'Thalas": 'Quel Thalas',
+    'Eastern Kingdoms': 'Östliche Königreiche',
+
+    # Dungeons & Raids
+    'Ragefire Chasm': 'Flammenschlund',
+    'Ragefireabgrund': 'Flammenschlund',
+    'Deadmines': 'Todesminen',
+    'Wailing Caverns': 'Die Höhlen des Wehklagens',
+    'Shadowfang Keep': 'Burg Schattenfang',
+    'Blackfathom Deeps': 'Tiefschwarze Grotte',
+    'Scarlet Monastery': 'Scharlachrotes Kloster',
+    'Stratholme': 'Stratholm',
+    'Molten Core': 'Geschmolzener Kern',
+    'Blackwing Lair': 'Pechschwingenhort',
+
+    # NPC Names
+    'Bronzebeard': 'Bronzebart',
+    'Stormrage': 'Sturmgrim',
+    'Whisperwind': 'Flüsterwind',
+    'Hellscream': 'Höllschrei',
+    'Windrunner': 'Windläufer',
+    'Grual': 'Gru-al',
+
+    # Races
+    'Night Elf': 'Nachtelf',
+    'Blood Elf': 'Blutelf',
+    'Undead': 'Untoter',
+    'Forsaken': 'Die Verlassenen',
+    'Dwarf': 'Zwerg',
+
+    # Symbols
+    '...': '.',
+
+    # Wording
+    'Rowdys': 'Raudis',
+    'SI:7.': 'S-I-7'
+}
+
 
 def get_hash(text):
     hash_object = hashlib.md5(text.encode())
@@ -71,6 +133,10 @@ def prune_quest_id_table(quest_id_table):
                         pruned_table[source_key][title_key][npc_key] = npc_value
 
     return pruned_table
+
+def convert_ogg_to_wav(input_file, output_file):
+    audio = AudioSegment.from_ogg(input_file)
+    audio.export(output_file, format="wav")
 
 def convert_mp3_to_wav(input_file, output_file):
     audio = AudioSegment.from_mp3(input_file)
@@ -162,19 +228,23 @@ class TTSProcessor:
     
     def tts(self, name: str, text: str, outputName: str, output_subfolder: str, forceGen: bool = False):
         result = ""
-        outpath = os.path.join(SOUND_OUTPUT_FOLDER, output_subfolder, outputName + '.wav')
-        outconvpath = os.path.join(SOUND_OUTPUT_FOLDER, output_subfolder, outputName + '.mp3')
-        inpath = os.path.join(SOUND_INPUT_FOLDER, self.voiceCloneMap[name] + '.mp3')
-        inconvpath = os.path.join(SOUND_INPUT_FOLDER, self.voiceCloneMap[name] + '.wav')
+        outpath = os.path.join(SOUND_OUTPUT_FOLDER, output_subfolder, outputName)
+        inpath = os.path.join(self.voiceCloneMap[name])
 
-        if os.path.isfile(outconvpath) and forceGen is not True:
+        print(outputName)
+        print(outpath)
+        print(inpath)
+
+        if os.path.isfile(f"{outpath}.mp3") and forceGen is not True:
             return "duplicate generation, skipping"
         
-        if os.path.isfile(inpath) is not True:
-            return f"can't find input file for voice cloning, skipping: {inpath}"
-        
-        if os.path.isfile(inconvpath) is not True:
-            convert_mp3_to_wav(inpath, inconvpath)
+        if os.path.isfile(f"{inpath}.wav") is not True:
+            if os.path.isfile(f"{inpath}.mp3") is True:
+                convert_mp3_to_wav(f"{inpath}.mp3", f"{inpath}.wav")
+            elif os.path.isfile(f"{inpath}.ogg") is True:
+                convert_ogg_to_wav(f"{inpath}.ogg", f"{inpath}.wav")
+            else:
+                return f"can't find input file for voice cloning, skipping: {inpath}"
 
         try:
             text = text.strip()
@@ -189,21 +259,19 @@ class TTSProcessor:
             xtreme_short_text = len(text) < 80
 
             if xtreme_short_text is True:
-                speed = 0.94
+                speed = 0.95
             else:
-                speed = 0.98
+                speed = 1.05
 
             # Text to speech to a file
-            tts.tts_to_file(text=text, speaker_wav=inconvpath, language=self.get_tts_lang(), speed=speed, file_path=outpath, split_sentences=not short_text)
+            tts.tts_to_file(text=text, speaker_wav=f"{inpath}.wav", language=self.get_tts_lang(), speed=speed, file_path=f"{outpath}.wav", split_sentences=not short_text)
 
-            convert_wav_to_mp3(outpath, outconvpath)
-            os.remove(outpath)
+            convert_wav_to_mp3(f"{outpath}.wav", f"{outpath}.mp3")
+            os.remove(f"{outpath}.wav")
 
             result = f"Audio file with tts xtts_v2 lang {self.get_tts_lang()} saved successfully!: {outpath}"
         except Exception as e:
             result = f"Error: unable to save audio file {outpath}: {e}"
-            
-        print(result)
 
         return result
         
@@ -493,3 +561,134 @@ class TTSProcessor:
 
         write_sound_length_table_lua(MODULE_NAME, SOUND_OUTPUT_FOLDER, OUTPUT_FOLDER)
         print("Updated sound_length_table.lua")
+    
+    def _load_output_json(self):
+        with open("./output.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    def _find_quest_entry(self, data, quest_source):
+        # quest_source = "70-accept"
+        quest_id, source = quest_source.split("-", 1)
+
+        for entry in data:
+            if (
+                entry.get("quest") == quest_id and
+                entry.get("source") == source
+            ):
+                return entry
+        return None
+    
+    def _find_gossip_entry(self, data, hash_value):
+        for entry in data:
+            if entry.get("quest"):
+                continue
+
+            text = entry["original_text"] + \
+                RACE_DICT.get(entry["DisplayRaceID"], "") + \
+                GENDER_DICT.get(entry["DisplaySexID"], "")
+
+            if get_hash(text) == hash_value:
+                return entry
+
+        return None
+
+    def _regenerate_from_entry(self, entry):
+        text = entry["text"]
+        name = entry["name"]
+
+        for k, v in REPLACE_DICT.items():
+            text = text.str.replace(k, v, regex=False)
+
+        # --- Dateiname exakt wie tts_row ---
+        if entry.get("quest"):
+            file_name = f'{entry["quest"]}-{entry["source"]}'
+            subfolder = "quests"
+        else:
+            template = (
+                entry["original_text"] +
+                RACE_DICT.get(entry["DisplayRaceID"], "") +
+                GENDER_DICT.get(entry["DisplaySexID"], "")
+            )
+            file_name = get_hash(template)
+            subfolder = "gossip"
+
+        print(f"Regenerating {subfolder}/{file_name}.mp3")
+
+        result = self.tts(
+            name=name,
+            text=text,
+            outputName=file_name,
+            output_subfolder=subfolder,
+            forceGen=True  # 🔥 overwrite
+        )
+
+        print(result)
+
+    def regenerate_audio(self, kind: str, identifier: str, language_number: int):
+        data = self._load_output_json()
+
+        if kind == "quest":
+            entry = self._find_quest_entry(data, identifier)
+            if not entry:
+                print(f"No quest entry found for {identifier}")
+                return
+
+            self._regenerate_from_entry(entry)
+
+        elif kind == "gossip":
+            entry = self._find_gossip_entry(data, identifier)
+            if not entry:
+                print(f"No gossip entry found for hash {identifier}")
+                return
+
+            self._regenerate_from_entry(entry)
+
+    def regenerate_for_npc(self, npc_name: str):
+        data = self._load_output_json()
+
+        entries = [e for e in data if e.get("name") == npc_name]
+
+        if not entries:
+            print(f"No entries found for NPC '{npc_name}'")
+            return
+
+        print(f"Found {len(entries)} entries for NPC '{npc_name}'")
+
+        for entry in entries:
+            self._regenerate_from_entry(entry)
+
+    def _load_voice_clone_map(self):
+        with open("./voice-clone-map.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def _save_voice_clone_map(self, data):
+        with open("./voice-clone-map.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+    def switch_voice(self, old_voice: str, new_voice: str):
+        voice_map = self._load_voice_clone_map()
+
+        affected_npcs = []
+
+        for npc_name, voice in voice_map.items():
+            if voice == old_voice:
+                voice_map[npc_name] = new_voice
+                affected_npcs.append(npc_name)
+
+        if not affected_npcs:
+            print(f"No NPCs found using voice '{old_voice}'")
+            return
+
+        self._save_voice_clone_map(voice_map)
+
+        print(
+            f"Replaced voice '{old_voice}' with '{new_voice}' "
+            f"for {len(affected_npcs)} NPC(s)"
+        )
+
+        # 🔥 Wichtig: internen Cache aktualisieren
+        self.voiceCloneMap = voice_map
+
+        # 🎙 Regenerate Audio
+        for npc_name in affected_npcs:
+            print(f"\nRegenerating audio for NPC: {npc_name}")
+            self.regenerate_for_npc(npc_name)
