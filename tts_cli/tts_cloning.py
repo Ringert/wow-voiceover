@@ -28,6 +28,7 @@ DATAMODULE_TABLE_GUARD_CLAUSE = 'if not VoiceOver or not VoiceOver.DataModules t
 # TODO: use replace map for each language.
 REPLACE_DICT = {
     # Placeholder
+    '$nath,': '$n,',
     '$B $B': '',
     '$b': '\n',
     '$B': '\n',
@@ -84,12 +85,27 @@ REPLACE_DICT = {
     'Forsaken': 'Die Verlassenen',
     'Dwarf': 'Zwerg',
 
-    # Symbols
-    '...': '.',
-
     # Wording
     'Rowdys': 'Raudis',
-    'SI:7.': 'S-I-7'
+    'SI:7.': 'S-I-7',
+    'Stonemaulklan': 'Stohnmaulklan',
+    'Dustwallow': 'Dahstwolloh',
+    'Moonglade': 'Muhnglehd',
+    'Elissa Starbreeze': 'Ilissa Stahrbries',
+    'Cliffspring': 'Kliff s\'pring',
+    'bitte schön': 'bitteschön',
+    'Oh-ho!': 'Oho!',
+    'un... un... unhygienisch!': 'un. un. unhygienisch!',
+    'Der Goldküstensteinbruch befindet sich in der Nähe der Küste, westlich vom Turm.': 'Der Goldküstensteinbruch befindet sich in der Nähe der Küste, westlich vom Turm..',
+    'Pah!': 'Pah.',
+    'Was wollt lhr von mir': 'Was wollt Ihr von mir',
+    'Aghhh...': 'Aarrgh,',
+    'Githyiss die Üble': 'Githyiss-die-Üble',
+    ' der Defias': '-der-Defias',
+    
+    # Symbols
+    '...': '.',
+    ';': '.',
 }
 
 
@@ -284,41 +300,31 @@ class TTSProcessor:
         return male_text, female_text
 
     def preprocess_dataframe(self, df):
-        df = df.copy() # prevent mutation on original df for safety
+        df = df.copy()  
+
         df['race'] = df['DisplayRaceID'].map(RACE_DICT)
         df['gender'] = df['DisplaySexID'].map(GENDER_DICT)
         df['voice_name'] = df['race'] + '-' + df['gender']
 
-        df['templateText_race_gender'] = df['original_text'] + df['race'] + df['gender']
-        df['templateText_race_gender_hash'] = df['templateText_race_gender'].apply(get_hash)
+        df['templateText_race_gender_hash'] = self.get_race_gender_hash(
+            df['original_text'], df['race'], df['gender']
+        )
 
-        df['cleanedText'] = df['text'].copy()
+        df['cleanedText'] = self.clean_text(df['text'])
 
-        for k, v in REPLACE_DICT.items():
-            df['cleanedText'] = df['cleanedText'].str.replace(k, v, regex=False)
-
-        df['cleanedText'] = df['cleanedText'].str.replace(r'<.*?>\s', '', regex=True)
-
-        df['player_gender'] = None
         rows = []
+
         for _, row in df.iterrows():
-            if re.search(r'\$[Gg]', row['cleanedText']):
-                male_text, female_text = self.handle_gender_options(row['cleanedText'])
+            variants = self._expand_text_variants(row['cleanedText'])
 
-                row_male = row.copy()
-                row_male['cleanedText'] = male_text
-                row_male['player_gender'] = 'm'
+            for variant in variants:
+                new_row = row.copy()
+                new_row['cleanedText'] = variant['text']
+                new_row['player_gender'] = variant.get('player_gender')
 
-                row_female = row.copy()
-                row_female['cleanedText'] = female_text
-                row_female['player_gender'] = 'f'
+                rows.append(new_row)
 
-                rows.extend([row_male, row_female])
-            else:
-                rows.append(row)
-
-        new_df = pd.DataFrame(rows)
-        new_df.reset_index(drop=True, inplace=True)
+        new_df = pd.DataFrame(rows).reset_index(drop=True)
 
         return new_df
 
@@ -326,8 +332,6 @@ class TTSProcessor:
     def process_row(self, row):
         if "$" in row.cleanedText or "<" in row.cleanedText or ">" in row.cleanedText:
             return f'skipping due to invalid chars: {row.cleanedText}'
-        elif row.source == "progress": # skip progress text (progress text is usually better left unread since its always played before quest completion)
-            return f'skipping progress text: {row.quest}-{row.source}'
         else:
             return self.tts_row(row)
 
@@ -577,51 +581,46 @@ class TTSProcessor:
                 return entry
         return None
     
-    def _find_gossip_entry(self, data, hash_value):
+    def _find_gossip_entry(self, data, search_hash):
         for entry in data:
             if entry.get("quest"):
                 continue
 
-            text = entry["original_text"] + \
-                RACE_DICT.get(entry["DisplayRaceID"], "") + \
-                GENDER_DICT.get(entry["DisplaySexID"], "")
+            hash = self.get_race_gender_hash(entry["original_text"], RACE_DICT.get(entry["DisplayRaceID"], ""), GENDER_DICT.get(entry["DisplaySexID"], ""))
 
-            if get_hash(text) == hash_value:
+            if hash == search_hash:
                 return entry
 
         return None
 
     def _regenerate_from_entry(self, entry):
-        text = entry["text"]
         name = entry["name"]
 
-        for k, v in REPLACE_DICT.items():
-            text = text.str.replace(k, v, regex=False)
+        cleaned_text = self.clean_text(entry["text"])
 
-        # --- Dateiname exakt wie tts_row ---
-        if entry.get("quest"):
-            file_name = f'{entry["quest"]}-{entry["source"]}'
-            subfolder = "quests"
-        else:
-            template = (
-                entry["original_text"] +
-                RACE_DICT.get(entry["DisplayRaceID"], "") +
-                GENDER_DICT.get(entry["DisplaySexID"], "")
+        subfolder, base_file_name = self._get_output_target(entry)
+
+        variants = self._expand_text_variants(cleaned_text)
+
+        for variant in variants:
+            suffix = variant.get("suffix")
+            file_name = (
+                f"{base_file_name}_{suffix}"
+                if suffix
+                else base_file_name
             )
-            file_name = get_hash(template)
-            subfolder = "gossip"
 
-        print(f"Regenerating {subfolder}/{file_name}.mp3")
+            print(f"Regenerating {subfolder}/{file_name}.mp3")
 
-        result = self.tts(
-            name=name,
-            text=text,
-            outputName=file_name,
-            output_subfolder=subfolder,
-            forceGen=True  # 🔥 overwrite
-        )
+            result = self.tts(
+                name=name,
+                text=variant["text"],
+                outputName=file_name,
+                output_subfolder=subfolder,
+                forceGen=True
+            )
 
-        print(result)
+            print(result)
 
     def regenerate_audio(self, kind: str, identifier: str, language_number: int):
         data = self._load_output_json()
@@ -692,3 +691,97 @@ class TTSProcessor:
         for npc_name in affected_npcs:
             print(f"\nRegenerating audio for NPC: {npc_name}")
             self.regenerate_for_npc(npc_name)
+
+    def get_race_gender_hash(self, original_text, race, gender):
+        """
+        Funktioniert mit:
+        - Strings
+        - pandas.Series
+        Liefert exakt denselben Hash wie die ursprüngliche DF-Implementierung.
+        """
+
+        if isinstance(original_text, pd.Series):
+            template = original_text + race + gender
+            return template.apply(get_hash)
+
+        if race is None or gender is None:
+            return None
+
+        return get_hash(original_text + race + gender)
+
+    def clean_text(self, text):
+        """
+        Bereinigt Text entweder als String oder als pandas.Series.
+        """
+        is_series = isinstance(text, pd.Series)
+
+        result = text.copy() if is_series else text
+
+        for k, v in REPLACE_DICT.items():
+            if is_series:
+                result = result.str.replace(k, v, regex=False)
+            else:
+                result = result.replace(k, v)
+
+        if is_series:
+            result = result.str.replace(r'<.*?>\s', '', regex=True)
+        else:
+            import re
+            result = re.sub(r'<.*?>\s', '', result)
+
+        return result
+    
+    def _get_output_target(self, entry):
+        """
+        Ermittelt Subfolder und Basis-Dateinamen (ohne Gender-Suffix).
+        """
+        if entry.get("quest"):
+            file_name = f'{entry["quest"]}-{entry["source"]}'
+            subfolder = "quests"
+        else:
+            race = RACE_DICT.get(entry["DisplayRaceID"], "")
+            gender = GENDER_DICT.get(entry["DisplaySexID"], "")
+            file_name = self.get_race_gender_hash(
+                entry["original_text"], race, gender
+            )
+            subfolder = "gossip"
+
+        return subfolder, file_name
+
+    def _expand_text_variants(self, text):
+        """
+        Erzeugt Textvarianten anhand erkannter Platzhalter.
+        Rückgabe: Liste von Dicts mit Metadaten.
+        """
+
+        variants = []
+
+        # --------------------------------------------------
+        # GENDER ($G / $g)
+        # --------------------------------------------------
+        if re.search(r'\$[Gg]', text):
+            male_text, female_text = self.handle_gender_options(text)
+
+            variants.append({
+                "text": male_text,
+                "suffix": "m",
+                "player_gender": "m",
+            })
+            variants.append({
+                "text": female_text,
+                "suffix": "f",
+                "player_gender": "f",
+            })
+
+            return variants  # bewusst: Gender ist exklusiv
+
+        # --------------------------------------------------
+        # DEFAULT (keine Varianten)
+        # --------------------------------------------------
+        variants.append({
+            "text": text,
+            "suffix": None,
+            "player_gender": None,
+        })
+
+        return variants

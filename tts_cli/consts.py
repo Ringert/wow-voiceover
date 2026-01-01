@@ -40,6 +40,7 @@ RACE_DICT = {
     37: 'mechagnome',
     52: 'dracthyr',
     70: 'dracthyr',
+    # Not used for gossip hash (file names) - only for voice-clone-map generation
     9901: 'thrall',
     9902: 'sylvanas',
     9903: 'nathanos',
