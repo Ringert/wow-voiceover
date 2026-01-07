@@ -30,6 +30,15 @@ switch_voice_parser = subparsers.add_parser("switch_voice",help="Replace a voice
 switch_voice_parser.add_argument("old_voice",help="Old voice path (e.g. quests/70-accept)")
 switch_voice_parser.add_argument("new_voice",help="New voice path (e.g. gossip/a63f0a77a472eab18caf48ea8320d27e)")
 
+regen_text_parser = subparsers.add_parser("regenerate_by_text", help="Regenerate all audio files whose text contains a given search string")
+regen_text_parser.add_argument("search",help="Search string (case-insensitive) to look for in output.json text field")
+
+regen_race_parser = subparsers.add_parser("regenerate_by_race", help="Regenerate all audio files for a given DisplayRaceID")
+regen_race_parser.add_argument("race_id",type=int,help="DisplayRaceID to regenerate audio for")
+regen_race_parser.add_argument("sex_id",type=int,nargs="?",help="Optional DisplaySexID (0 = male, 1 = female)")
+
+regen_voice_parser = subparsers.add_parser("regenerate_all_with_voice",help="Regenerate all NPCs that use a specific voice")
+regen_voice_parser.add_argument("voice",type=str,help="Voice identifier to search for in voice-clone-map.json")
 
 args = parser.parse_args()
 
@@ -71,6 +80,15 @@ elif args.mode == "regenerate_for_npc":
 elif args.mode == "switch_voice":
     tts_processor = TTSProcessor(utils.language_number_to_tts_lang(language_number))
     tts_processor.switch_voice(old_voice=args.old_voice,new_voice=args.new_voice)
+elif args.mode == "regenerate_by_text":
+    tts_processor = TTSProcessor(utils.language_number_to_tts_lang(language_number))
+    tts_processor.regenerate_by_text(args.search)
+elif args.mode == "regenerate_by_race":
+    tts_processor = TTSProcessor(utils.language_number_to_tts_lang(language_number))
+    tts_processor.regenerate_by_race(race_id=args.race_id,sex_id=args.sex_id)
+elif args.mode == "regenerate_all_with_voice":
+    tts_processor = TTSProcessor(utils.language_number_to_tts_lang(language_number))
+    tts_processor.regenerate_all_with_voice(args.voice)
 else:
     interactive_mode()
 

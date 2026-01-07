@@ -46,7 +46,7 @@ REPLACE_DICT = {
     'Undercity': 'Unterstadt',
     'Ironforge': 'Eisenschmiede',
     'Silvermoon': 'Silbermond',
-
+    'Gnomeregan': 'Gnomeregahn',
     'Alterac': 'Alterak',
     'Alteractal': 'Alteraktal',
     'Arathi': 'Arati',
@@ -57,6 +57,8 @@ REPLACE_DICT = {
     'Lordaeron': 'Lorderon',
     "Quel'Thalas": 'Quel Thalas',
     'Eastern Kingdoms': 'Östliche Königreiche',
+    'Astranaar': 'Astranahr',
+    'Coldridge-Tal': 'Coldridge-Tahl',
 
     # Dungeons & Raids
     'Ragefire Chasm': 'Flammenschlund',
@@ -77,6 +79,9 @@ REPLACE_DICT = {
     'Hellscream': 'Höllschrei',
     'Windrunner': 'Windläufer',
     'Grual': 'Gru-al',
+    'Dendrite': 'Dendrit',
+    'Starblaze': 'ßtahrblaiß',
+    'Greywhisker': 'Gräiwisker',
 
     # Races
     'Night Elf': 'Nachtelf',
@@ -87,7 +92,8 @@ REPLACE_DICT = {
 
     # Wording
     'Rowdys': 'Raudis',
-    'SI:7.': 'S-I-7',
+    'SI:7.': 'S-I-7,',
+    'SI:7': 'S-I-7',
     'Stonemaulklan': 'Stohnmaulklan',
     'Dustwallow': 'Dahstwolloh',
     'Moonglade': 'Muhnglehd',
@@ -102,10 +108,68 @@ REPLACE_DICT = {
     'Aghhh...': 'Aarrgh,',
     'Githyiss die Üble': 'Githyiss-die-Üble',
     ' der Defias': '-der-Defias',
-    
+    'Mathrengyl': 'Masrengil',
+    'Bearwalker': 'Birwalker',
+    'Entschuldigung...': 'Entschuldigung,',
+    'Brzzzzt! ': '',
+    'so\'n': 'son',
+    'Cenarius\'': 'Cenarius',
+    'Spionagebot': 'Spionage-Bott',
+    'is\'': 'is',
+    'Schietkram': 'Schitkram',
+    'Archäologe': 'Arschheologe',
+    'archäologe': 'arschheologe',
+    'Hier,': 'Hier',
+
+
+    # Numbers
+    '01101100': '', 
+    '01001100': '', 
+    '01101000': '', 
+    '01001011': '', 
+    '01100111': '', 
+    '01110110': '', 
+    '00100001': '',
+    '01101101': '', 
+    '01101101': '', 
+    '01010100': '', 
+    '01110101': '', 
+    '01100110': '', 
+    '01100100': '', 
+    '01110000': '', 
+    '01111001': '',
+    '01010111': '',
+    '01001110': '', 
+    '01101001': '', 
+    '01100101': '', 
+    '01010000': '', 
+    '01110010': '', 
+    '01110100': '', 
+    '01100001': '', 
+    '01101110': '', 
+    '00100000': '', 
+    '01010010': '', 
+    '01101111': '', 
+    '01100011': '', 
+    '01101011': '', 
+    '01110011': '',
+    '01110111': '',
+    '01000100': '',
+    '01110111': '',
+    '00111100': '',
+    '00111110': '',
+    '00111010': '',
+    '01001101': '',
+    '01000011': '',
+    '01010011': '',
+
     # Symbols
     '...': '.',
     ';': '.',
+    '"': '',
+    '  ': ' ',
+    ' - ': ', ',
+    ' -,': ','
 }
 
 
@@ -247,10 +311,6 @@ class TTSProcessor:
         outpath = os.path.join(SOUND_OUTPUT_FOLDER, output_subfolder, outputName)
         inpath = os.path.join(self.voiceCloneMap[name])
 
-        print(outputName)
-        print(outpath)
-        print(inpath)
-
         if os.path.isfile(f"{outpath}.mp3") and forceGen is not True:
             return "duplicate generation, skipping"
         
@@ -260,7 +320,14 @@ class TTSProcessor:
             elif os.path.isfile(f"{inpath}.ogg") is True:
                 convert_ogg_to_wav(f"{inpath}.ogg", f"{inpath}.wav")
             else:
+                print(outputName)
+                print(outpath)
+                print(inpath)   
                 return f"can't find input file for voice cloning, skipping: {inpath}"
+
+        print(outputName)
+        print(outpath)
+        print(inpath)
 
         try:
             text = text.strip()
@@ -287,6 +354,7 @@ class TTSProcessor:
 
             result = f"Audio file with tts xtts_v2 lang {self.get_tts_lang()} saved successfully!: {outpath}"
         except Exception as e:
+            print(f"Error: unable to save audio file {outpath}: {e}")
             result = f"Error: unable to save audio file {outpath}: {e}"
 
         return result
@@ -309,17 +377,15 @@ class TTSProcessor:
         df['templateText_race_gender_hash'] = self.get_race_gender_hash(
             df['original_text'], df['race'], df['gender']
         )
-
-        df['cleanedText'] = self.clean_text(df['text'])
-
         rows = []
 
         for _, row in df.iterrows():
-            variants = self._expand_text_variants(row['cleanedText'])
+            variants = self._expand_text_variants(row.to_dict())
 
             for variant in variants:
                 new_row = row.copy()
-                new_row['cleanedText'] = variant['text']
+                new_row['text'] = variant['text']
+                new_row['cleanedText'] = self.clean_text(variant['text'])
                 new_row['player_gender'] = variant.get('player_gender')
 
                 rows.append(new_row)
@@ -337,11 +403,19 @@ class TTSProcessor:
 
     def tts_row(self, row):
         tts_text = row.cleanedText
-        file_name =  f'{row.quest}-{row.source}' if row.quest else f'{row.templateText_race_gender_hash}'
+        entry = {
+            "quest": getattr(row, "quest", None),
+            "source": getattr(row, "source", None),
+            "DisplayRaceID": row.DisplayRaceID,
+            "DisplaySexID": row.DisplaySexID,
+            "original_text": row.original_text
+        }
+
+        subfolder, file_name = self._get_output_target(entry)
+        
         if row.player_gender is not None:
-            file_name = row.player_gender+ '-'+ file_name
-        file_name = file_name
-        subfolder = 'quests' if row.quest else 'gossip'
+            file_name = row.player_gender+ '-' + file_name
+
         return self.tts(row.name, tts_text, file_name, subfolder)
 
     def create_output_dirs(self):
@@ -569,6 +643,9 @@ class TTSProcessor:
     def _load_output_json(self):
         with open("./output.json", "r", encoding="utf-8") as f:
             return json.load(f)
+    def _load_voice_clone_map_json(self):
+        with open("./voice-clone-map.json", "r", encoding="utf-8") as f:
+            return json.load(f)
     def _find_quest_entry(self, data, quest_source):
         # quest_source = "70-accept"
         quest_id, source = quest_source.split("-", 1)
@@ -598,40 +675,32 @@ class TTSProcessor:
 
         cleaned_text = self.clean_text(entry["text"])
 
-        subfolder, base_file_name = self._get_output_target(entry)
-
-        variants = self._expand_text_variants(cleaned_text)
-
-        for variant in variants:
-            suffix = variant.get("suffix")
-            file_name = (
-                f"{base_file_name}_{suffix}"
-                if suffix
-                else base_file_name
-            )
-
-            print(f"Regenerating {subfolder}/{file_name}.mp3")
-
-            result = self.tts(
-                name=name,
-                text=variant["text"],
-                outputName=file_name,
-                output_subfolder=subfolder,
-                forceGen=True
-            )
-
-            print(result)
+        subfolder, file_name = self._get_output_target(entry)
+        
+        return self.tts(
+            name=name,
+            text=cleaned_text,
+            outputName=file_name,
+            output_subfolder=subfolder,
+            forceGen=True
+        )
 
     def regenerate_audio(self, kind: str, identifier: str, language_number: int):
         data = self._load_output_json()
 
         if kind == "quest":
             entry = self._find_quest_entry(data, identifier)
+            
             if not entry:
                 print(f"No quest entry found for {identifier}")
                 return
+            
+            variants = self._expand_text_variants(entry)
 
-            self._regenerate_from_entry(entry)
+            for variant in variants:
+                result = self._regenerate_from_entry(variant)
+        
+                print(result)
 
         elif kind == "gossip":
             entry = self._find_gossip_entry(data, identifier)
@@ -639,21 +708,32 @@ class TTSProcessor:
                 print(f"No gossip entry found for hash {identifier}")
                 return
 
-            self._regenerate_from_entry(entry)
+            variants = self._expand_text_variants(entry)
+
+            for variant in variants:
+                result = self._regenerate_from_entry(variant)
+        
+                print(result)
 
     def regenerate_for_npc(self, npc_name: str):
         data = self._load_output_json()
 
         entries = [e for e in data if e.get("name") == npc_name]
+        matches = []
 
-        if not entries:
+        for entry in entries:
+            variants_for_entry = self._expand_text_variants(entry)
+
+            for variant in variants_for_entry:
+                matches.append(variant)
+
+        if not matches:
             print(f"No entries found for NPC '{npc_name}'")
             return
 
-        print(f"Found {len(entries)} entries for NPC '{npc_name}'")
+        print(f"Found {len(matches)} entries for NPC '{npc_name}'")
 
-        for entry in entries:
-            self._regenerate_from_entry(entry)
+        self.regenerate_entries_with_progress(matches)
 
     def _load_voice_clone_map(self):
         with open("./voice-clone-map.json", "r", encoding="utf-8") as f:
@@ -687,9 +767,11 @@ class TTSProcessor:
         # 🔥 Wichtig: internen Cache aktualisieren
         self.voiceCloneMap = voice_map
 
+        current_npc = 1
         # 🎙 Regenerate Audio
         for npc_name in affected_npcs:
-            print(f"\nRegenerating audio for NPC: {npc_name}")
+            print(f"\n{current_npc}/{len(affected_npcs)} Regenerating audio for NPC: {npc_name}")
+            current_npc += 1
             self.regenerate_for_npc(npc_name)
 
     def get_race_gender_hash(self, original_text, race, gender):
@@ -746,9 +828,13 @@ class TTSProcessor:
             )
             subfolder = "gossip"
 
+
+        if entry['player_gender'] is not None:
+            file_name = entry['player_gender'] + '-' + file_name
+
         return subfolder, file_name
 
-    def _expand_text_variants(self, text):
+    def _expand_text_variants(self, entry):
         """
         Erzeugt Textvarianten anhand erkannter Platzhalter.
         Rückgabe: Liste von Dicts mit Metadaten.
@@ -759,17 +845,16 @@ class TTSProcessor:
         # --------------------------------------------------
         # GENDER ($G / $g)
         # --------------------------------------------------
-        if re.search(r'\$[Gg]', text):
-            male_text, female_text = self.handle_gender_options(text)
-
+        if re.search(r'\$[Gg]', entry['text']):
+            male_text, female_text = self.handle_gender_options(entry['text'])
             variants.append({
+                **entry,
                 "text": male_text,
-                "suffix": "m",
                 "player_gender": "m",
             })
             variants.append({
+                **entry,
                 "text": female_text,
-                "suffix": "f",
                 "player_gender": "f",
             })
 
@@ -779,9 +864,111 @@ class TTSProcessor:
         # DEFAULT (keine Varianten)
         # --------------------------------------------------
         variants.append({
-            "text": text,
-            "suffix": None,
+            **entry,
+            "text": entry['text'],
             "player_gender": None,
         })
 
         return variants
+    
+    def regenerate_by_text(self, search: str):
+        data = self._load_output_json()
+
+        search_lower = search.lower()
+        matches = []
+
+        for entry in data:
+            text = entry["text"]
+            if search_lower in text.lower():
+                variants_for_entry = self._expand_text_variants(entry)
+
+                for variant in variants_for_entry:
+                    matches.append(variant)
+
+        if not matches:
+            print(f"No entries found containing '{search}'")
+            return
+
+        print(f"Found {len(matches)} entries containing '{search}'")
+
+        self.regenerate_entries_with_progress(matches)
+
+    def regenerate_by_race(self, race_id: int, sex_id: int | None = None):
+        data = self._load_output_json()
+
+        matches = []
+
+        for entry in data:
+            if entry.get("DisplayRaceID") != race_id:
+                continue
+
+            if sex_id is not None and entry.get("DisplaySexID") != sex_id:
+                continue
+
+            variants_for_entry = self._expand_text_variants(entry)
+
+            for variant in variants_for_entry:
+                matches.append(variant)
+            
+
+        if not matches:
+            if sex_id is None:
+                print(f"No entries found for DisplayRaceID {race_id}")
+            else:
+                print(
+                    f"No entries found for DisplayRaceID {race_id} "
+                    f"and DisplaySexID {sex_id}"
+                )
+            return
+
+        if sex_id is None:
+            print(f"Found {len(matches)} entries for DisplayRaceID {race_id}")
+        else:
+            print(
+                f"Found {len(matches)} entries for DisplayRaceID {race_id} "
+                f"and DisplaySexID {sex_id}"
+            )
+
+        self.regenerate_entries_with_progress(matches)
+
+    def regenerate_entries_with_progress(self, entries, desc="Regenerating Audio"):
+        total = len(entries)
+        bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}] {postfix}'
+
+        with tqdm(
+            total=total,
+            unit='files',
+            ncols=100,
+            desc=desc,
+            ascii=False,
+            bar_format=bar_format,
+            dynamic_ncols=True
+        ) as pbar:
+
+            for entry in entries:
+                postfix = self._regenerate_from_entry(entry)
+                if postfix:
+                    pbar.set_postfix_str(postfix)
+                pbar.update(1)
+
+    def regenerate_all_with_voice(self, voice: str):
+        voice_map = self._load_voice_clone_map_json()
+
+        matching_npcs = [
+            npc_name
+            for npc_name, npc_voice in voice_map.items()
+            if npc_voice == voice
+        ]
+
+        if not matching_npcs:
+            print(f"No NPCs found with voice '{voice}'")
+            return
+
+        print(f"Found {len(matching_npcs)} NPC(s) with voice '{voice}'")
+
+        current_npc = 1;
+
+        for npc_name in matching_npcs:
+            print(f"{current_npc}/{len(matching_npcs)} Regenerating audio for NPC: {npc_name}")
+            current_npc += 1;
+            self.regenerate_for_npc(npc_name)
