@@ -8,96 +8,360 @@ Contribute voices on [allvoice.ai](https://allvoice.ai) so I can give each NPC a
 ### [allvoice code](https://github.com/allvoice/allvoice-website)
 
 ## Overview
-- tts cli to create audio files for quests and gossip text.
-- in game addon for playing generated voiceovers
+- TTS CLI tool to create audio files for quests and gossip text
+- In-game addon for playing generated voiceovers
+- CLI uses data fetched from a local MySQL database
+- TTS generation via [lib-tts](https://github.com/Ringert/lib-tts) webservice
 
-- cli uses data fetched from a local MySQL database and ElevenLabs tts for speech
+## Below is for developers only
+Go to [releases](https://github.com/mrthinger/wow-voiceover/releases) if you're looking to install the addon.
 
+---
 
-## Below is for developers only. Go to [releases](https://github.com/mrthinger/wow-voiceover/releases) if youre looking to install the addon.
+## Setup Guide for New Developers
 
-## Requirements
-- docker (for the database)
-- build-essential
-- pyenv (for python 3.10.19)
-- ffmpeg
+This guide will walk you through setting up the complete development environment for wow-voiceover generation.
 
+### Prerequisites
 
-## Installation
-1. Make a python virtual environment. (make sure to source it after creating)
+- **OS**: Linux (recommended) or WSL2 on Windows
+- **Docker** & **Docker Compose** (for MySQL database)
+- **Python**: 3.10.x (via pyenv recommended)
+- **ffmpeg**: For audio processing
+- **Git**: For cloning repositories
+
+### Step 1: Install System Dependencies
+
+#### Ubuntu/Debian
 ```bash
+sudo apt update
+sudo apt install -y build-essential ffmpeg git curl docker.io docker-compose
+```
+
+#### Fedora/RHEL
+```bash
+sudo dnf install -y @development-tools ffmpeg git curl docker docker-compose
+```
+
+### Step 2: Install pyenv (Python Version Manager)
+
+```bash
+curl https://pyenv.run | bash
+
+# Add to your shell configuration (~/.bashrc or ~/.zshrc)
 echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
 echo 'eval "$(pyenv init --path)"' >> ~/.bashrc
 echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
-source ~/.bashrc
 
+# Reload shell configuration
+source ~/.bashrc
+```
+
+### Step 3: Install Python 3.10
+
+```bash
+pyenv install 3.10.15
+pyenv global 3.10.15
+python --version  # Should show Python 3.10.15
+```
+
+### Step 4: Clone and Setup wow-voiceover
+
+```bash
+# Clone the repository
+git clone https://github.com/mrthinger/wow-voiceover.git
+cd wow-voiceover
+
+# Create virtual environment
 python -m venv .venv
 source .venv/bin/activate
 
-
-```
-2. Install the required packages.
-```bash
+# Install Python dependencies
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-3. Download, Build and Install
-```bash
-git clone https://github.com/Ringert/TTS-Python-3-10-15-ROCm-6-1-3
-cd TTS-Python-3-10-15-ROCm-6-1-3
-pip install -e .[all,dev,notebooks]
-```
+### Step 5: Setup MySQL Database
 
-4. Copy the .env.example file to .env and fill in your ElevenLabs API Key and database credentials. The included database values are fine if you're going to use the docker-compose file.
 ```bash
+# Copy environment configuration
 cp .env.example .env
-```
-5. Start the MySQL DB
-```bash
+
+# Edit .env if needed (default values work with docker-compose)
+# nano .env
+
+# Start MySQL container
 docker compose up -d
-```
-6. Seed the MySQL DB
-```bash
+
+# Wait a few seconds for MySQL to initialize, then seed the database
 python cli-main.py init-db
 ```
 
-## New Terminal
+This will download and import the World of Warcraft database dump.
+
+### Step 6: Setup TTS Webservice
+
+The TTS generation is handled by a separate webservice. You need to set it up:
+
 ```bash
+# Clone the TTS service repository
+cd ..
+git clone https://github.com/Ringert/lib-tts.git
+cd lib-tts
+
+# Follow the setup instructions in lib-tts README
+# This typically involves:
+# 1. Creating a Python virtual environment
+# 2. Installing dependencies
+# 3. Setting up voice samples
+# 4. Starting the webservice on port 8000
+```
+
+**Important**: The TTS webservice must be running on `http://localhost:8000` before you can generate audio files.
+
+Refer to [lib-tts documentation](https://github.com/Ringert/lib-tts) for detailed setup instructions.
+
+### Step 7: Create Voice Clone Map
+
+The voice clone map defines which voice sample to use for each NPC:
+
+```bash
+cd ~/wow-voiceover  # Return to wow-voiceover directory
 source .venv/bin/activate
-export PATH="$HOME/.pyenv/bin:$PATH"
-eval "$(pyenv init --path)"
-eval "$(pyenv virtualenv-init -)"
+
+python cli-main.py create_voice_clone_map
 ```
 
+This creates/updates `voice-clone-map.json` with voice assignments.
 
-## Voice Setup
-The generation scripts assume you have voices created in Elevenlabs named in the format `race-gender`. For the exact races the script checks your elevenlabs account for, refer to `tts_cli\consts.py`. Gender will always either be `male` or `female`. ex: `orc-male`. You will need to create your own voice clones. A good place to get samples is @ https://www.wowhead.com/sounds/npc-greetings/name:orc 
-## Usage
-To use the interactive CLI tool, run the following command:
+### Step 8: Generate Audio Files
+
+Now you can generate voiceover audio files:
 
 ```bash
-python cli-main.py
+# Generate all audio files for German (deDE)
+python cli-main.py gen_lookup_tables --lang=deDE
+
+# Or use interactive mode
+python cli-main.py interactive
 ```
 
-### Language Client Selection
-Currently there are no voice translations available for languages other than english. However, if you want to use the addon with a non English client, you can still do so by creating the lookup tables in the client's respective language.
+The generated audio files will be saved in:
+- `AI_VoiceOverData_Vanilla/generated/sounds/quests/`
+- `AI_VoiceOverData_Vanilla/generated/sounds/gossip/`
 
-To create the lookup tables, you can use the following command, with `LANGUAGE_CODE` representing the required language for the client:
+### Step 9: Install Addon to WoW
+
+Copy the generated files to your WoW addon directory:
+
 ```bash
-python cli-main.py gen_lookup_tables --lang=LANGUAGE_CODE
-```
-The default selection, when no language code is provided, is English. Please be aware that the quality of text completion for translations in languages other than English can vary significantly.
+export WOW_DIR="/path/to/your/World of Warcraft"
 
-The following language codes are supported:
+# Copy or symlink the addon folders
+cp -r AI_VoiceOver "$WOW_DIR/_classic_era_/Interface/AddOns/"
+cp -r AI_VoiceOverData_Vanilla "$WOW_DIR/_classic_era_/Interface/AddOns/"
+
+# Or use symlinks for faster development:
+ln -s "$(pwd)/AI_VoiceOver" "$WOW_DIR/_classic_era_/Interface/AddOns/"
+ln -s "$(pwd)/AI_VoiceOverData_Vanilla" "$WOW_DIR/_classic_era_/Interface/AddOns/"
+```
+
+---
+
+## Daily Development Workflow
+
+### Starting Your Session
+
+```bash
+cd ~/wow-voiceover
+source .venv/bin/activate
+```
+
+Make sure the TTS webservice is running:
+```bash
+# In a separate terminal
+cd ~/lib-tts
+source .venv/bin/activate  # Or whatever venv you used for lib-tts
+python main.py  # Or whatever command starts the service
+```
+
+### Common Commands
+
+```bash
+# Interactive mode
+python cli-main.py interactive
+
+# Generate lookup tables for a specific language
+python cli-main.py gen_lookup_tables --lang=deDE
+
+# Regenerate audio for a specific quest
+python cli-main.py regenerate quest 70-accept
+
+# Regenerate audio for specific gossip
+python cli-main.py regenerate gossip a63f0a77a472eab18caf48ea8320d27e
+
+# Regenerate all audio for an NPC
+python cli-main.py regenerate_for_npc "Tirion Fordring"
+
+# Regenerate audio by text search
+python cli-main.py regenerate_by_text "Abenteurer"
+
+# Regenerate audio for a specific race/gender
+python cli-main.py regenerate_by_race 1 0  # Human Male
+
+# Switch voice clone for NPCs
+python cli-main.py switch_voice quests/70-accept gossip/abc123
+
+# Extract model data
+python cli-main.py extract_model_data
+```
+
+---
+
+## Supported Languages
+
 | Language Code | Language |
 | ------------- | ------- |
-| enUS          | English |
-| enGB          | English |
+| enUS          | English (US) |
+| enGB          | English (GB) |
 | koKR          | Korean |
 | frFR          | French |
 | deDE          | German |
 | zhCN          | Simplified Chinese |
 | zhTW          | Traditional Chinese |
+| esES          | European Spanish |
+| esMX          | Mexican Spanish |
+| ruRU          | Russian |
+
+---
+
+## TTS Webservice Configuration
+
+The CLI expects the TTS webservice to be available at `http://localhost:8000`.
+
+### API Endpoints Used
+
+**POST** `/api/v1/synthesize`
+- Generates audio from text
+- Request body:
+  ```json
+  {
+    "text": "Your text here",
+    "voice_id": "quests/70-accept",
+    "language": "german"
+  }
+  ```
+- Response:
+  ```json
+  {
+    "file_id": "uuid",
+    "file_path": "/sounds/uuid.mp3",
+    "duration": 31.3975,
+    "created_at": "2026-01-27T18:53:42.504275"
+  }
+  ```
+
+**GET** `/api/v1/{file_path}`
+- Downloads the generated audio file
+
+---
+
+## Project Structure
+
+```
+wow-voiceover/
+├── AI_VoiceOver/              # In-game addon code
+├── AI_VoiceOverData_Vanilla/  # Generated audio files and lookup tables
+├── tts_cli/                   # TTS generation CLI tools
+│   ├── tts_cloning.py        # Main TTS processing logic
+│   ├── sql_queries.py        # Database queries
+│   ├── utils.py              # Helper functions
+│   └── ...
+├── cli-main.py               # Main CLI entry point
+├── requirements.txt          # Python dependencies
+├── docker-compose.yml        # MySQL database setup
+└── voice-clone-map.json      # Voice assignments per NPC
+```
+
+---
+
+## Troubleshooting
+
+### TTS Webservice Connection Error
+
+If you see errors like `Connection refused` or `unable to generate audio via webservice`:
+1. Ensure lib-tts webservice is running: `http://localhost:8000`
+2. Test the service: `curl http://localhost:8000/health` (if available)
+3. Check lib-tts logs for errors
+
+### Database Connection Issues
+
+```bash
+# Check if MySQL container is running
+docker ps
+
+# View MySQL logs
+docker compose logs mysql
+
+# Restart MySQL container
+docker compose restart mysql
+```
+
+### Python Virtual Environment Issues
+
+```bash
+# Deactivate and recreate venv
+deactivate
+rm -rf .venv
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Audio Generation Fails
+
+1. Check that voice samples exist in lib-tts
+2. Verify voice-clone-map.json has correct voice_id references
+3. Check lib-tts logs for errors during synthesis
+
+---
+
+## Contributing
+
+If you want to contribute to this project, please feel free to open an issue or submit a pull request.
+
+---
+
+## CLI Reference
+
+### Dataframe Schema
+
+The dataframe schema before calling `preprocess_dataframe` consists of:
+
+| Column        | Description                                                  |
+|---------------|--------------------------------------------------------------|
+| `source`      | Interaction type: 'accept', 'progress', 'complete', 'gossip' |
+| `quest`       | Quest ID or empty string if gossip interaction    |
+| `text`        | Text template content of the interaction                           |
+| `DisplayRaceID` | Race ID of the NPC          |
+| `DisplaySexID`  | Gender ID of the NPC        |
+| `name`        | NPC name               |
+| `type`        | NPC type: 'creature', 'gameobject', or 'item' |
+| `id`          | Creature/gameobject/item ID |
+
+`DisplayRaceID = -1` is used for inanimate NPCs (gameobjects, items). It's mapped to "narrator" voice.
+
+### Fields Added by `preprocess_dataframe`
+
+| Column                   | Description                                                  |
+|--------------------------|--------------------------------------------------------------|
+| `race`                   | NPC race, mapped from `DisplayRaceID` via `RACE_DICT` |
+| `gender`                 | NPC gender, mapped from `DisplaySexID` via `GENDER_DICT` |
+| `voice_name`             | Voice name: combination of race + gender |
+| `templateText_race_gender` | Combination of text, race, and gender          |
+| `templateText_race_gender_hash` | Hash of templateText_race_gender          |
+| `cleanedText` | Rendered template text |
+| `player_gender` | Player character gender (if applicable) |
 | esES          | European Spanish |
 | esMX          | Mexican Spanish |
 | ruRU          | Russian |

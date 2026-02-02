@@ -8,16 +8,14 @@ from tts_cli.consts import RACE_DICT, GENDER_DICT
 from tts_cli.length_table import write_sound_length_table_lua
 from tts_cli.utils import get_first_n_words, get_last_n_words, replace_dollar_bs_with_space
 from slpp import slpp as lua
-import torch
-from TTS.api import TTS
 from pydub import AudioSegment
 import json
 import random
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 import math
-from TTS.tts.configs.xtts_config import XttsConfig
-from TTS.tts.models.xtts import Xtts
+import requests
+import shutil
 
 # TODO: make module name a cli arg when we do other expansions
 MODULE_NAME = 'AI_VoiceOverData_Vanilla'
@@ -59,6 +57,7 @@ REPLACE_DICT = {
     'Eastern Kingdoms': 'Östliche Königreiche',
     'Astranaar': 'Astranahr',
     'Coldridge-Tal': 'Coldridge-Tahl',
+    'Azeroth': 'Azerott',
 
     # Dungeons & Raids
     'Ragefire Chasm': 'Flammenschlund',
@@ -120,6 +119,7 @@ REPLACE_DICT = {
     'Archäologe': 'Arschheologe',
     'archäologe': 'arschheologe',
     'Hier,': 'Hier',
+    'Stormpike': 'ßtohrmpaike',
 
 
     # Numbers
@@ -214,13 +214,27 @@ def prune_quest_id_table(quest_id_table):
 
     return pruned_table
 
-def convert_ogg_to_wav(input_file, output_file):
+def convert_ogg_to_wav(input_file, output_file=None):
+    """Konvertiert eine OGG-Datei in WAV, 22050 Hz, Mono, 16-bit PCM."""
+    output_file = output_file or input_file.rsplit(".", 1)[0] + ".wav"
     audio = AudioSegment.from_ogg(input_file)
+    
+    # Mono und 22050 Hz sicherstellen
+    audio = audio.set_channels(1).set_frame_rate(22050).set_sample_width(2)  # 2 bytes = 16-bit
+    
     audio.export(output_file, format="wav")
+    print(f"[OGG->WAV] {input_file} -> {output_file}")
 
-def convert_mp3_to_wav(input_file, output_file):
+def convert_mp3_to_wav(input_file, output_file=None):
+    """Konvertiert eine MP3-Datei in WAV, 22050 Hz, Mono, 16-bit PCM."""
+    output_file = output_file or input_file.rsplit(".", 1)[0] + ".wav"
     audio = AudioSegment.from_mp3(input_file)
+    
+    # Mono und 22050 Hz sicherstellen
+    audio = audio.set_channels(1).set_frame_rate(22050).set_sample_width(2)  # 2 bytes = 16-bit
+    
     audio.export(output_file, format="wav")
+    print(f"[MP3->WAV] {input_file} -> {output_file}")
 
 def convert_wav_to_mp3(input_file, output_file):
     audio = AudioSegment.from_wav(input_file)
@@ -309,50 +323,62 @@ class TTSProcessor:
     def tts(self, name: str, text: str, outputName: str, output_subfolder: str, forceGen: bool = False):
         result = ""
         outpath = os.path.join(SOUND_OUTPUT_FOLDER, output_subfolder, outputName)
-        inpath = os.path.join(self.voiceCloneMap[name])
+        voice_id = self.voiceCloneMap[name]
 
         if os.path.isfile(f"{outpath}.mp3") and forceGen is not True:
             return "duplicate generation, skipping"
-        
-        if os.path.isfile(f"{inpath}.wav") is not True:
-            if os.path.isfile(f"{inpath}.mp3") is True:
-                convert_mp3_to_wav(f"{inpath}.mp3", f"{inpath}.wav")
-            elif os.path.isfile(f"{inpath}.ogg") is True:
-                convert_ogg_to_wav(f"{inpath}.ogg", f"{inpath}.wav")
-            else:
-                print(outputName)
-                print(outpath)
-                print(inpath)   
-                return f"can't find input file for voice cloning, skipping: {inpath}"
 
         print(outputName)
         print(outpath)
-        print(inpath)
+        print(f"Using voice_id: {voice_id}")
 
         try:
             text = text.strip()
-            # Init TTS
-            # Most likely downloaded to ~/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2 -> to improve model output for certain languages edit the config.json file. 
-            # This works only with my custom TTS Projekt - otherwise the model will be redownloaded
-            # may use the tts_cli/model_config/xttsv2.json instead of given config.json (its improved for german language output)
-            # TODO: Add new parameter to TTS initialization to pass custom config.
-            tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=False)
-
-            short_text = len(text) < 250
-            xtreme_short_text = len(text) < 80
-
-            if xtreme_short_text is True:
-                speed = 0.95
-            else:
-                speed = 1.05
-
-            # Text to speech to a file
-            tts.tts_to_file(text=text, speaker_wav=f"{inpath}.wav", language=self.get_tts_lang(), speed=speed, file_path=f"{outpath}.wav", split_sentences=not short_text)
-
-            convert_wav_to_mp3(f"{outpath}.wav", f"{outpath}.mp3")
-            os.remove(f"{outpath}.wav")
-
-            result = f"Audio file with tts xtts_v2 lang {self.get_tts_lang()} saved successfully!: {outpath}"
+            
+            # Prepare request to TTS webservice
+            api_url = "http://localhost:8000/api/v1/synthesize"
+            payload = {
+                "text": text,
+                "voice_id": voice_id,
+                "language": "german",
+                "temperature": 0.6,
+                "top_p": 0.65,
+                "top_k": 45,
+                "repetition_penalty": 10.0,
+                "length_penalty": 0.65,
+                "gpt_cond_len": 30,
+                "gpt_cond_chunk_len": 4,
+                "max_ref_len": 30
+            }
+            
+            # Send POST request to TTS service
+            response = requests.post(api_url, json=payload, timeout=300)
+            response.raise_for_status()
+            
+            # Parse response
+            response_data = response.json()
+            file_path = response_data.get("file_path")
+            
+            if not file_path:
+                raise Exception("No file_path in response")
+            
+            # Download the generated audio file
+            download_url = f"http://localhost:8000/api/v1{file_path}"
+            audio_response = requests.get(download_url, timeout=60)
+            audio_response.raise_for_status()
+            
+            # Ensure output directory exists
+            os.makedirs(os.path.dirname(f"{outpath}.mp3"), exist_ok=True)
+            
+            # Save the audio file with the correct name
+            with open(f"{outpath}.mp3", "wb") as f:
+                f.write(audio_response.content)
+            
+            result = f"Audio file saved successfully via webservice: {outpath}.mp3"
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Error: unable to generate audio via webservice {outpath}: {e}")
+            result = f"Error: unable to generate audio via webservice {outpath}: {e}"
         except Exception as e:
             print(f"Error: unable to save audio file {outpath}: {e}")
             result = f"Error: unable to save audio file {outpath}: {e}"
@@ -408,7 +434,8 @@ class TTSProcessor:
             "source": getattr(row, "source", None),
             "DisplayRaceID": row.DisplayRaceID,
             "DisplaySexID": row.DisplaySexID,
-            "original_text": row.original_text
+            "original_text": row.original_text,
+            "player_gender": row.player_gender
         }
 
         subfolder, file_name = self._get_output_target(entry)
