@@ -855,10 +855,7 @@ class TTSProcessor:
             )
             subfolder = "gossip"
 
-
-        if entry['player_gender'] is not None:
-            file_name = entry['player_gender'] + '-' + file_name
-
+        # player_gender wird in tts_row hinzugefügt, nicht hier
         return subfolder, file_name
 
     def _expand_text_variants(self, entry):
