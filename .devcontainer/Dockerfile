@@ -1,7 +1,5 @@
 FROM mcr.microsoft.com/devcontainers/python:1-3.10-bookworm
 
-ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
-
 ENV VIRTUAL_ENV=/opt/venv \
     PATH=/opt/venv/bin:${PATH} \
     PYTHONUNBUFFERED=1 \
@@ -13,14 +11,12 @@ ENV VIRTUAL_ENV=/opt/venv \
 RUN rm -f /etc/apt/sources.list.d/yarn.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-       build-essential ffmpeg libsndfile1 default-mysql-client \
+       build-essential ffmpeg default-mysql-client \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /tmp/wow-voiceover-requirements.txt
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/python -m pip install --no-cache-dir -r /tmp/wow-voiceover-requirements.txt \
-    && /opt/venv/bin/python -m pip install --no-cache-dir \
-       torch==2.6.0 torchaudio==2.6.0 --index-url ${TORCH_INDEX_URL} \
     && /opt/venv/bin/python -m pip check \
     && /opt/venv/bin/python -m playwright install --with-deps chromium \
     && chmod -R a+rX /opt/playwright \

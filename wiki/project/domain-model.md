@@ -20,7 +20,7 @@ sources:
     resource: "../../AI_VoiceOver/VoiceOver.lua"
 generated:
   by: codex/gpt-6-astra
-  at: 2026-09-20T00:24:56Z
+  at: 2026-09-20T09:31:03Z
 ---
 # Fachliches Modell
 
@@ -30,7 +30,7 @@ generated:
 | `source` | `accept`, `progress`, `complete` oder `gossip`; der Datenbestand kann mehr Interaktionen enthalten als aktuell im Addon aktiv registriert sind |
 | Quest | `quest` enthält die Quest-ID; der Basisaudioname ist `<quest>-<source>` |
 | Sprecher | `type` unterscheidet `creature`, `gameobject`, `item`; `id` ist die jeweilige Objekt-ID, `name` der Name |
-| NPC-Stimme | `voice-clone-map.json` ordnet **NPC-Namen** einer Referenz wie `quests/70-accept` zu; keine Zuordnung nach NPC-ID |
+| NPC-Stimme | `voice-clone-map.json` ordnet **NPC-Namen** einem lokalen WAV-Pfad wie `wow-voiceover/de/human/m-human-15.wav` zu; keine Zuordnung nach NPC-ID |
 | NPC-Rasse/-Geschlecht | `DisplayRaceID` und `DisplaySexID` werden über `RACE_DICT` und `GENDER_DICT` übersetzt; `-1` steht für einen Erzähler bei unbelebten Quellen |
 | Spieler-Geschlecht | Eigener Wert `player_gender`: `m`, `f` oder nicht gesetzt; nicht mit dem Sprecher-Geschlecht verwechseln |
 | Datenmodul | Lua-Tabelle mit Lookupdaten, Priorität, Mapzuordnung, Formatversion und Audiopfaden; vom Player getrennt installierbar |
@@ -50,7 +50,7 @@ Für Gossip bildet der aktuelle Python-Pfad einen MD5-Hash aus der unveränderte
 | --- | --- |
 | `output.json` | Von der aktuellen SQL-Abfrage geschriebener Export; Regenerierungsbefehle lesen ihn wieder ein |
 | `sql.json`, `gossip.json`, `sound_length.json` | Eingaben der Voice-Map-Erzeugung; nicht automatisch mit jedem neuen Export synchronisiert |
-| `voice-clone-map.json` | Aktuelle NPC-Namen-Zuordnung zur Referenzstimme |
+| `voice-clone-map.json` | Aktuelle NPC-Namen-Zuordnung zum lokalen WAV-Pfad einschließlich Endung |
 | `AI_VoiceOverData_Vanilla/generated/sounds/quests/` | Quest-MP3s |
 | `AI_VoiceOverData_Vanilla/generated/sounds/gossip/` | Gossip-MP3s |
 | `AI_VoiceOverData_Vanilla/generated/*.lua` | Vom Modul-TOC geladene Lookups und `SoundLengthLookupByFileName` |

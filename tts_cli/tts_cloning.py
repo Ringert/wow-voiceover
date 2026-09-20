@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import re
 from tts_cli.consts import RACE_DICT, GENDER_DICT
 from tts_cli.env_vars import TTS_BASE_URL
+from tts_cli.voice_files import read_voice_file, resolve_voice_path
 from tts_cli.length_table import write_sound_length_table_lua
 from tts_cli.utils import get_first_n_words, get_last_n_words, replace_dollar_bs_with_space
 from slpp import slpp as lua
@@ -284,10 +285,14 @@ def create_voice_clone_map():
         key = f"{entry['DisplayRaceID']}-{entry['DisplaySexID']}"
 
         for value in soundFiles[name]['quests']:
-            genderRaceMap[key].add(f"quests/{value}")
+            path = f"{SOUND_INPUT_FOLDER}/quests/{value}.wav"
+            if resolve_voice_path(path).is_file():
+                genderRaceMap[key].add(path)
 
         for value in soundFiles[name]['gossip']:
-            genderRaceMap[key].add(f"gossip/{value}")
+            path = f"{SOUND_INPUT_FOLDER}/gossip/{value}.wav"
+            if resolve_voice_path(path).is_file():
+                genderRaceMap[key].add(path)
 
     # --- Voice Clone Map ---
     voiceCloneFile = {}
@@ -300,7 +305,8 @@ def create_voice_clone_map():
             key = '5-1'
 
         if name not in voiceCloneFile:
-            # random.choice braucht eine Sequenz
+            if not genderRaceMap[key]:
+                raise ValueError(f"No local WAV references for race/gender {key} in {SOUND_INPUT_FOLDER}")
             voiceCloneFile[name] = random.choice(tuple(genderRaceMap[key]))
 
     # --- Schreiben ---
@@ -321,27 +327,29 @@ class TTSProcessor:
     def get_tts_lang(self):
         return self.tts_lang
     
-    def tts(self, name: str, text: str, outputName: str, output_subfolder: str, forceGen: bool = False):
+    def tts(self, voice_path: str, text: str, outputName: str, output_subfolder: str, forceGen: bool = False):
         result = ""
         outpath = os.path.join(SOUND_OUTPUT_FOLDER, output_subfolder, outputName)
-        voice_id = self.voiceCloneMap[name]
 
         if os.path.isfile(f"{outpath}.mp3") and forceGen is not True:
             return "duplicate generation, skipping"
 
         print(outputName)
         print(outpath)
-        print(f"Using voice_id: {voice_id}")
+        print(f"Using voice file: {voice_path}")
 
         try:
+            reference_path, reference_audio = read_voice_file(voice_path)
             text = text.strip()
             
-            # Prepare request to TTS webservice
+            # Contract: {TTS_BASE_URL}/user-manual.md and /openapi.json.
+            # These parameters configure the remote service, not a local model.
             api_url = f"{TTS_BASE_URL}/api/v1/synthesize"
             payload = {
                 "text": text,
-                "voice_id": voice_id,
-                "language": "german",
+                "language": "de",
+                "speed": 1.0,
+                "pitch": 1.0,  # Reserved by the API; currently has no effect.
                 "temperature": 0.6,
                 "top_p": 0.65,
                 "top_k": 45,
@@ -349,22 +357,30 @@ class TTSProcessor:
                 "length_penalty": 0.65,
                 "gpt_cond_len": 30,
                 "gpt_cond_chunk_len": 4,
-                "max_ref_len": 30
+                "max_ref_len": 30,
+                "sound_norm_refs": False
             }
             
             # Send POST request to TTS service
-            response = requests.post(api_url, json=payload, timeout=300)
+            response = requests.post(
+                api_url,
+                files={
+                    "request": (None, json.dumps(payload), "application/json"),
+                    "file": (reference_path.name, reference_audio, "audio/wav"),
+                },
+                timeout=300,
+            )
             response.raise_for_status()
             
             # Parse response
             response_data = response.json()
-            file_path = response_data.get("file_path")
+            file_id = response_data.get("file_id")
             
-            if not file_path:
-                raise Exception("No file_path in response")
+            if not file_id:
+                raise Exception("No file_id in response")
             
             # Download the generated audio file
-            download_url = f"{TTS_BASE_URL}/api/v1{file_path}"
+            download_url = f"{TTS_BASE_URL}/api/v1/sounds/{file_id}"
             audio_response = requests.get(download_url, timeout=60)
             audio_response.raise_for_status()
             
@@ -444,7 +460,7 @@ class TTSProcessor:
         if row.player_gender is not None:
             file_name = row.player_gender+ '-' + file_name
 
-        return self.tts(row.name, tts_text, file_name, subfolder)
+        return self.tts(self.voiceCloneMap[row.name], tts_text, file_name, subfolder)
 
     def create_output_dirs(self):
         create_output_subdirs('')
@@ -706,7 +722,7 @@ class TTSProcessor:
         subfolder, file_name = self._get_output_target(entry)
         
         return self.tts(
-            name=name,
+            voice_path=self.voiceCloneMap[name],
             text=cleaned_text,
             outputName=file_name,
             output_subfolder=subfolder,
@@ -773,11 +789,12 @@ class TTSProcessor:
 
     def switch_voice(self, old_voice: str, new_voice: str):
         voice_map = self._load_voice_clone_map()
+        old_path = resolve_voice_path(old_voice)
 
         affected_npcs = []
 
         for npc_name, voice in voice_map.items():
-            if voice == old_voice:
+            if resolve_voice_path(voice) == old_path:
                 voice_map[npc_name] = new_voice
                 affected_npcs.append(npc_name)
 
@@ -785,6 +802,8 @@ class TTSProcessor:
             print(f"No NPCs found using voice '{old_voice}'")
             return
 
+        # Validate before persisting the replacement or regenerating audio.
+        read_voice_file(new_voice)
         self._save_voice_clone_map(voice_map)
 
         print(
@@ -978,18 +997,21 @@ class TTSProcessor:
 
     def regenerate_all_with_voice(self, voice: str):
         voice_map = self._load_voice_clone_map_json()
+        voice_path = resolve_voice_path(voice)
 
         matching_npcs = [
             npc_name
             for npc_name, npc_voice in voice_map.items()
-            if npc_voice == voice
+            if resolve_voice_path(npc_voice) == voice_path
         ]
 
         if not matching_npcs:
             print(f"No NPCs found with voice '{voice}'")
             return
 
-        print(f"Found {len(matching_npcs)} NPC(s) with voice '{voice}'")
+        read_voice_file(voice)
+        self.voiceCloneMap = voice_map
+        print(f"Found {len(matching_npcs)} NPC(s) with voice file '{voice}'")
 
         current_npc = 1;
 

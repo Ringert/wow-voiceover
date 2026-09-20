@@ -22,13 +22,13 @@ sources:
     resource: "../../tools/github-workflows/test/"
 generated:
   by: codex/gpt-6-astra
-  at: 2026-09-20T00:35:08Z
+  at: 2026-09-20T09:31:03Z
 ---
 # Projektspezifische Entwicklung
 
 ## Vorhandene Arbeitsumgebung
 
-Öffne das Repository in VS Code mit **Dev Containers: Reopen in Container**. Die [bestehende Containeranleitung](../../.devcontainer/README.md) beschreibt den Imagebuild, GPU-Option und persönliche Anmeldung. Der Workspace liegt unter `/workspaces/wow-voiceover`, Python 3.10 samt Projektabhängigkeiten unter `/opt/venv`; eine Aktivierung ist dort nicht nötig.
+Öffne das Repository in VS Code mit **Dev Containers: Reopen in Container**. Die [bestehende Containeranleitung](../../.devcontainer/README.md) beschreibt den Imagebuild und persönliche Anmeldung. Der Workspace liegt unter `/workspaces/wow-voiceover`, Python 3.10 samt Projektabhängigkeiten unter `/opt/venv`; eine Aktivierung ist dort nicht nötig.
 
 Das Volume `wow-voiceover-home-${devcontainerId}` hält `/home/vscode` mit Codex-/GitHub-Anmeldung und VS-Code-Erweiterungen über Rebuilds zusammen. Der Container installiert beim Start nichts und startet keine Projektdienste. Nur Login-Port 1455 ist in VS Code fest weitergeleitet. Die Vorlagenübernahme verändert diese vorhandene Konfiguration nicht.
 
@@ -40,7 +40,7 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Torch/TorchAudio und Playwright-Browser sind gesonderte Abhängigkeiten bestimmter Hilfswerkzeuge. Die im Container installierte CPU-Kombination ist im Dockerfile festgelegt. `.python-version` benennt eine pyenv-Umgebung und richtet diese nicht selbst ein.
+Playwright-Browser sind gesonderte Abhängigkeiten der Download-Hilfswerkzeuge. TTS-Modelle, deren Laufzeit und GPU-Konfiguration gehören ausschließlich zum externen Webservice. Nach der Umstellung eines älteren Images entfernt **Dev Containers: Rebuild Container** die zuvor installierten Modellbibliotheken; eine Änderung am Dockerfile entfernt keine Pakete aus einem bereits laufenden Container. `.python-version` benennt eine pyenv-Umgebung und richtet diese nicht selbst ein.
 
 ## Dienste und Konfiguration
 
@@ -49,7 +49,6 @@ Torch/TorchAudio und Playwright-Browser sind gesonderte Abhängigkeiten bestimmt
 | MySQL | `docker-compose.yml` enthält ausschließlich `mysql:8`, Containername `mysql-server`, Port `3306:3306`, Volume `wowdb-data`, Entwicklungskennwort `wow`. Keine explizite Restart-Policy; keine automatische DB-Befüllung. |
 | DB-Client | `tts_cli/env_vars.py` verwendet fest `0.0.0.0:3306`, `root`, `wow`, Datenbank `wow`. Die gleichnamigen `.env`-Werte werden derzeit nicht ausgewertet. |
 | TTS | Separates Repository `Ringert/lib-tts`; Clientadresse über `TTS_PROTOCOL`, `TTS_HOST` und `TTS_PORT` in `.env` konfigurierbar, Standard `http://localhost:8000`. Server, Modelle und Referenzaudio werden hier nicht bereitgestellt. |
-| Legacy-Konfiguration | `.env` wird geladen; `ELEVENLABS_API_KEY` gehört zum älteren ElevenLabs-Pfad, nicht zum aktiven `tts_cloning`-HTTP-Client. |
 
 Die `.env` im Repository-Root wird unabhängig vom Arbeitsverzeichnis beim Import der Konfiguration geladen. Bereits gesetzte Umgebungsvariablen haben Vorrang. Fehlende TTS-Werte verwenden die obigen Standardwerte; Änderungen greifen beim nächsten CLI-Start. Das [Benutzerhandbuch](user-manual.md#tts-adresse-einstellen) erklärt die Eingaben.
 
@@ -71,7 +70,7 @@ Alle CLI-Befehle werden aus dem Repository-Root ausgeführt. Die globale Option 
 
 1. MySQL-Verbindung, Datenbankziel und TTS-Erreichbarkeit in der tatsächlich verwendeten Umgebung klären.
 2. Nur für die bewusst einzurichtende Entwicklungsdatenbank `python cli-main.py init-db` ausführen. Das lädt einen veränderlichen VMaNGOS-Dump, importiert Tabellen und ruft `fix-de` auf. Vorher vorhandene Daten separat sichern; es gibt keinen belegten automatischen Rollback.
-3. Vorhandene `voice-clone-map.json` und ihre Referenzaudios im TTS-Dienst prüfen. `create_voice_clone_map` nur bei beabsichtigter Neuverteilung verwenden: Es liest `sql.json`, `gossip.json`, `sound_length.json`, wählt zufällig und überschreibt die Map.
+3. Vorhandene `voice-clone-map.json` und ihre lokalen WAV-Dateipfade prüfen; Referenzen werden bei jeder Synthese hochgeladen und müssen nicht im TTS-Dienst registriert sein. `create_voice_clone_map` nur bei beabsichtigter Neuverteilung verwenden: Es liest `sql.json`, `gossip.json`, `sound_length.json`, wählt zufällig und überschreibt die Map.
 4. Einen kleinen ausgewählten Regenerierungsfall über den [CLI-Nachschlageteil](user-manual.md#cli-nachschlagen) bearbeiten. `interactive` bedeutet im aktuellen Code Verarbeitung aller abgefragten Dialoge und ist kein begrenzter Smoke-Test.
 5. Nach Audioänderungen mit `python cli-main.py --lang deDE gen_lookup_tables` die Lua-Lookups und gemessenen Dauern aktualisieren. Der Befehl benötigt MySQL und eine lesbare Voice-Map, überschreibt `output.json` und generierte Tabellen, ruft aber keine Synthese auf.
 
@@ -91,7 +90,7 @@ git diff --check
 
 Ein Login-Shell- oder Werkzeugaufruf kann stattdessen `/usr/local/bin/python` auswählen. Bei `ModuleNotFoundError` zuerst den Interpreterpfad prüfen; ein erfolgreiches `pip check` im System-Python belegt nicht, dass die Projektpakete dort installiert sind. Keine zweite Paketinstallation zur Umgehung eines falsch gewählten Interpreters nötig.
 
-`compileall` prüft Syntax; `--help` prüft zusätzlich die geladenen CLI-Abhängigkeiten und den Parser. Beides belegt keine erfolgreiche Abfrage, Audiogenerierung oder Wiedergabe. Für die Produktlogik existiert bislang keine automatisierte Python-/Lua-Testsuite und kein konfigurierter projektweiter Linter oder Typechecker.
+`compileall` prüft Syntax; `--help` prüft zusätzlich die geladenen CLI-Abhängigkeiten und den Parser. Beides belegt keine erfolgreiche Abfrage, Audiogenerierung oder Wiedergabe. Die lokalen WAV-Referenzen, Pfadweitergabe, Map-Änderungen und der tatsächlich codierte Multipart-Vertrag werden mit `/opt/venv/bin/python -m unittest discover -s tests -v` geprüft. Die Tests verwenden synthetische WAVs und ersetzen den HTTP-Transport; sie erzeugen keine echte Synthese. Eine automatisierte Lua-Testsuite und ein projektweiter Linter oder Typechecker sind nicht eingerichtet.
 
 Die übernommenen GitHub-Skripte haben isolierte Verhaltenstests mit kontrollierten GraphQL-Antworten. Sie verwenden den tatsächlich ausgelieferten `github-script`-Code, ohne GitHub zu verändern. Voraussetzung ist eine Node.js-Version mit `node:test` (ab 18); Node ist kein Bestandteil des bestehenden Devcontainer-Images. Bei Bedarf kann es manuell in der laufenden Arbeitsumgebung installiert werden, etwa über `sudo apt-get update` und `sudo apt-get install -y nodejs`.
 
@@ -103,7 +102,7 @@ node --test tools/github-workflows/test/*.test.mjs
 | --- | --- |
 | Text-/Hash-/Dateikonvention | Kleine synthetische Quest-/Gossip-Fälle einschließlich Gender-Präfixen; Python-Ausgabe gegen Lua-Verbrauch prüfen |
 | SQL oder Import | Isolierte MySQL-8-Datenbank mit begrenzten Fixtures; Seiteneffekte und Wiederholung prüfen |
-| TTS-HTTP-Client | Request-/Response-Vertrag, fehlender `file_path`, Fehler und Überschreibeverhalten kontrolliert prüfen; echte Verbindung gesondert benennen |
+| TTS-HTTP-Client | Multipart-Felder ohne `voice_id`, WAV-Inhalt/-Grenzen, Pfadweitergabe, fehlende `file_id`, Fehler und Überschreibeverhalten kontrolliert prüfen; echte Verbindung gesondert benennen |
 | Addon/Kompatibilität | Passende WoW-Clientversion, konkrete Quest/Gossip und Queue-Steuerung im Spiel prüfen |
 | Wiki/Codex | YAML-/TOML-Struktur, lokale Links/Anker, Quellen und Bestandsaussagen prüfen; Client-Neuladen für reale Agentenerkennung |
 | GitHub-Zuordnung | Lokale Workflowtests; ein späterer echter Actions-Lauf ist ein eigener Nachweis |

@@ -18,7 +18,7 @@ sources:
     resource: "../../.python-version"
 generated:
   by: codex/gpt-6-astra
-  at: 2026-09-20T00:24:56Z
+  at: 2026-09-20T08:35:43Z
 ---
 # Projekt-Tech-Stack
 
@@ -31,12 +31,12 @@ generated:
 | Addon | WoW-Lua/XML/TOC, Ace3, LibStub, LibDataBroker und weitere eingebundene Bibliotheken | [addon.xml](../../AI_VoiceOver/addon.xml), [embeds.xml](../../AI_VoiceOver/embeds.xml) |
 | Clientvarianten | TOCs für 1.12, 2.4.3, 3.3.5, Vanilla, TBC, Wrath und Mainline; Bibliotheksvarianten für Legacy-Clients | [AI_VoiceOver](../../AI_VoiceOver/) |
 | Datenmodul | Lua-Lookups, Dauerntabelle und MP3-Dateien | [Datenmodul-TOC](../../AI_VoiceOverData_Vanilla/AI_VoiceOverData_Vanilla.toc) |
-| Arbeitscontainer | Python-3.10-Bookworm-Basis, `/opt/venv`, PyTorch/TorchAudio 2.6.0 CPU, Playwright Chromium, GitHub CLI | [Dockerfile](../../.devcontainer/Dockerfile), [Containeranleitung](../../.devcontainer/README.md) |
+| Arbeitscontainer | Python-3.10-Bookworm-Basis, `/opt/venv`, FFmpeg/ffprobe, Playwright Chromium, GitHub CLI | [Dockerfile](../../.devcontainer/Dockerfile), [Containeranleitung](../../.devcontainer/README.md) |
 | Entwicklungsprozess | Codex-Rollen in TOML, Markdown-Wiki mit YAML-Metadaten, GitHub Actions mit `github-script` | [Codex-Konfiguration](../../.codex/config.toml), [Workflows](../../.github/workflows/) |
 | Workflowtests | Node.js mit eingebautem `node:test`, keine npm-Pakete; nur Werkzeugtests, kein Produktstack | [Workflowtests](../../tools/github-workflows/test/) |
 
 Die existierende `.python-version` enthält den pyenv-Umgebungsnamen `wow-voiceover`, keine Python-Versionsnummer. Auf einem neuen Host muss diese Umgebung vorhanden sein oder Python 3.10 explizit gewählt werden.
 
-`requirements.txt` enthält überwiegend direkte Versionspins, aber keine vollständige transitive Lockdatei. Torch/TorchAudio werden getrennt im Containerimage installiert. Das ist kein Nachweis für CUDA-Unterstützung oder die Modellkompatibilität des getrennten TTS-Servers. Die aktuelle Containerbasis enthält weder Docker-in-Docker noch Node.js; Node wird nur bei Bedarf für die Workflowtests benötigt.
+`requirements.txt` enthält überwiegend direkte Versionspins, aber keine vollständige transitive Lockdatei. Das Containerimage installiert keine lokale TTS-Modelllaufzeit. Modellabhängigkeiten und GPU-Konfiguration gehören ausschließlich zum getrennten TTS-Server. Die aktuelle Containerbasis enthält weder Docker-in-Docker noch Node.js; Node wird nur bei Bedarf für die Workflowtests benötigt.
 
 Für Lua gilt die jeweilige WoW-Client-Laufzeit. Moderne Syntax oder APIs dürfen nicht allein aufgrund einer lokal installierten Lua-Version eingeführt werden. Eingebundene Bibliotheken bleiben mit ihrer Client-Zuordnung erhalten. Änderungen folgen den [Engineering-Prinzipien](../standards/engineering-principles.md) und den tatsächlichen [Schnittstellen](architecture.md).

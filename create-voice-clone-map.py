@@ -21,6 +21,7 @@ def select_random_voice(language: str, race: str, gender: str):
     candidates = [
         f for f in os.listdir(race_dir)
         if f.lower().startswith(prefix)
+        and f.lower().endswith(".wav")
         and os.path.isfile(os.path.join(race_dir, f))
     ]
 
@@ -29,9 +30,7 @@ def select_random_voice(language: str, race: str, gender: str):
         return None
 
     file = random.choice(candidates)
-    filename_no_ext = os.path.splitext(file)[0]
-
-    return f"{language}/{race}/{filename_no_ext}"
+    return f"{language}/{race}/{file}"
 
 
 def get_race_key_from_string(text: str):

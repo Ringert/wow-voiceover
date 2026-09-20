@@ -23,3 +23,6 @@ sound-input
 # Generated release artifacts
 /release/
 /release_notes.md
+
+# Local reference recordings used by voice-clone-map.json
+/wow-voiceover/

@@ -20,7 +20,7 @@ sources:
     resource: "../../AI_VoiceOverData_Vanilla/Module.lua"
 generated:
   by: codex/gpt-6-astra
-  at: 2026-09-20T00:35:08Z
+  at: 2026-09-20T09:31:03Z
 ---
 # Projektarchitektur
 
@@ -30,7 +30,7 @@ Das Repository verbindet zwei getrennte Laufzeiten: Offline-Generierung in Pytho
 flowchart LR
     DB[(MySQL / VMaNGOS)] --> CLI[Python CLI]
     MAP[voice-clone-map.json] --> CLI
-    CLI -->|Text und Referenzstimme| TTS[Separater lib-tts-Dienst]
+    CLI -->|Text und lokale WAV als Multipart| TTS[Separater lib-tts-Dienst]
     TTS -->|Audiodownload| CLI
     CLI --> DATA[Vanilla-Datenmodul: Lua-Tabellen und MP3]
     DATA --> ADDON[WoW-Addon: Lookup und SoundQueue]
@@ -53,7 +53,7 @@ flowchart LR
 | [Compatibility.lua](../../AI_VoiceOver/Compatibility.lua), [Version.lua](../../AI_VoiceOver/Version.lua) | Clientabhängige APIs und Legacy-Unterschiede |
 | [Module.lua](../../AI_VoiceOverData_Vanilla/Module.lua) | Registrierung des Vanilla-Datenmoduls und relative MP3-Pfade |
 
-`tts_cli/tts_utils.py` enthält einen älteren ElevenLabs-Pfad. `cli-main.py` importiert den Processor aus `tts_cloning.py`; eine vorhandene Datei oder `ELEVENLABS_API_KEY` belegt deshalb keinen aktiven ElevenLabs-Aufruf dieses CLI-Pfads.
+`cli-main.py` verwendet ausschließlich den HTTP-Client aus `tts_cloning.py`. Modellwahl, Modellgewichte und Laufzeit liegen beim separaten Webservice. Der Client übergibt explizite Syntheseparameter im HTTP-Payload. Im Projekt gibt es keinen lokalen Syntheseweg und keinen alternativen Anbieterclient.
 
 ## Datenfluss und Seiteneffekte
 
@@ -66,7 +66,9 @@ flowchart LR
 
 ## HTTP-Vertrag des Clients
 
-`TTSProcessor.tts` verwendet die gemeinsame Basisadresse aus `tts_cli/env_vars.py`, zusammengesetzt aus `TTS_PROTOCOL`, `TTS_HOST` und `TTS_PORT` (Standard: `http://localhost:8000`). Es sendet `POST {TTS_BASE_URL}/api/v1/synthesize` mit `text`, `voice_id`, festem `language: german` und den im Code definierten Syntheseparametern. Es erwartet eine JSON-Antwort mit `file_path` und lädt danach `{TTS_BASE_URL}/api/v1{file_path}`. POST-Timeout: 300 Sekunden; Download-Timeout: 60 Sekunden. Der Rückgabedownload wird unter dem eigenen Quest-/Gossip-Dateinamen als MP3 gespeichert.
+`TTSProcessor.tts` verwendet die gemeinsame Basisadresse aus `tts_cli/env_vars.py`, zusammengesetzt aus `TTS_PROTOCOL`, `TTS_HOST` und `TTS_PORT` (Standard: `http://localhost:8000`). Es sendet `POST {TTS_BASE_URL}/api/v1/synthesize` als `multipart/form-data`: Das Textfeld `request` enthält JSON mit `text`, festem `language: de` und den expliziten Syntheseparametern aus `tts_cloning.py`; das Dateifeld `file` enthält die lokale WAV als `audio/wav`. `voice_id` wird nicht gesendet, da es zusammen mit `file` unzulässig ist. Die Map enthält lokale WAV-Pfade; relative Pfade werden vom Repository-Root aufgelöst. `tts_row` und sämtliche Regenerierungswege übergeben den zugeordneten Pfad an `tts`, das die Datei liest und mitsendet. Es erwartet eine JSON-Antwort mit `file_id` und lädt danach `{TTS_BASE_URL}/api/v1/sounds/{file_id}`. Die am 20. September 2026 gelesene Dienstanleitung warnt vor dem nicht registrierten Rückgabepfad in `file_path`. POST-Timeout: 300 Sekunden; Download-Timeout: 60 Sekunden. Der Rückgabedownload wird unter dem eigenen Quest-/Gossip-Dateinamen als MP3 gespeichert.
+
+Bei Payloadänderungen ist die aktuelle Markdown-Anleitung unter `{TTS_BASE_URL}/user-manual.md` zusammen mit dem dort verlinkten `/openapi.json` maßgeblich. Die WAV-Grenze beträgt 10 MiB, das JSON-Feld höchstens 1 MiB und der gesamte Multipart-Body höchstens 11 MiB. Der Client prüft Dateiendung, Größe und RIFF/WAVE-Kennung; die vollständige Audioformatprüfung übernimmt der Dienst. Die Referenz ist dort temporär und wird nicht als Voice registriert. Sampling, Penalties, Referenzlängen, Geschwindigkeit und Normalisierung werden explizit übergeben. `pitch` ist im Schema reserviert und derzeit ohne Wirkung. `ref_text` wird mangels Referenztranskript nicht gesetzt; bei Qwen kann der Dienst dann automatisch transkribieren. Die tatsächlich wirksamen Parameter hängen vom Modelladapter im Dienst ab.
 
 Das beschreibt den konsumierten Clientvertrag. Der Server liegt außerhalb des Checkouts; dessen Startbefehl, Authentisierung, Modelldateien und aktuelle Implementierung sind hier nicht verifiziert. Fehler werden im aktuellen Client vielfach als Text zurückgegeben. Ein Prozessende mit Exitcode 0 allein beweist daher keine vollständige Audiogenerierung.
 

@@ -16,7 +16,7 @@ sources:
     resource: "../../RETAIL-PLAN.md"
 generated:
   by: codex/gpt-6-astra
-  at: 2026-09-20T00:24:56Z
+  at: 2026-09-20T08:45:40Z
 ---
 # Produktvision
 
@@ -32,7 +32,7 @@ VoiceOver macht vorhandene WoW-Quest- und NPC-Dialoge als vorproduzierte Spracha
 
 Der aktive Generierungspfad nutzt Vanilla-/VMaNGOS-Daten und den externen `lib-tts`-Dienst. Der Code hat mehrere Client-TOCs und Kompatibilitätsschichten; daraus folgt keine bestätigte Unterstützung aller heutigen WoW-Versionen. [RETAIL-PLAN.md](../../RETAIL-PLAN.md) beschreibt historische Ideen für Crowdsourcing und Retail-Portierung. Es belegt weder einen implementierten Uploaddienst noch ein aktuelles Releaseziel.
 
-Die Locale-Auswahl existiert, die Syntheseanfrage verwendet jedoch fest `language: german`. Eine vollständig funktionierende Mehrsprachigkeit ist deshalb kein belegter Bestand. Das Projekt enthält keinen eigenen Webauftritt, Nutzerkonto-Service oder produktiven TTS-Host.
+Die Locale-Auswahl existiert, die Syntheseanfrage verwendet jedoch fest `language: de`. Eine vollständig funktionierende Mehrsprachigkeit ist deshalb kein belegter Bestand. Das Projekt enthält keinen eigenen Webauftritt, Nutzerkonto-Service oder produktiven TTS-Host.
 
 ## Beobachtbare Qualität
 

@@ -18,7 +18,7 @@ subparsers.add_parser("init-db", help="Initialize the database")
 subparsers.add_parser("fix-de", help="Fix german text for TTS")
 subparsers.add_parser("interactive", help="Interactive mode")
 subparsers.add_parser("extract_model_data", help="Generate info about which NPC entry uses which model.")
-subparsers.add_parser("create_voice_clone_map", help="Generate info about which NPC entry uses which model.")
+subparsers.add_parser("create_voice_clone_map", help="Assign existing local WAV references to NPCs.")
 subparsers.add_parser("gen_lookup_tables", help="Generate the lookup tables for all quests and gossip in the game. Also recomputes the sound length table.")
 subparsers.add_parser( "regenerate_for_npc",help="Regenerate all audio files for a specific NPC (by exact name)").add_argument("npc_name", help="Exact NPC name as stored in output.json")
 
@@ -27,8 +27,8 @@ regen_parser.add_argument("kind",choices=["quest", "gossip"],help="Type of audio
 regen_parser.add_argument("identifier",help="Quest id-source (e.g. 70-accept) or gossip hash")
 
 switch_voice_parser = subparsers.add_parser("switch_voice",help="Replace a voice clone reference and regenerate affected NPC audio")
-switch_voice_parser.add_argument("old_voice",help="Old voice path (e.g. quests/70-accept)")
-switch_voice_parser.add_argument("new_voice",help="New voice path (e.g. gossip/a63f0a77a472eab18caf48ea8320d27e)")
+switch_voice_parser.add_argument("old_voice",help="Old local WAV path in voice-clone-map.json")
+switch_voice_parser.add_argument("new_voice",help="New local WAV path (e.g. sound-input/de/human/m-demo.wav)")
 
 regen_text_parser = subparsers.add_parser("regenerate_by_text", help="Regenerate all audio files whose text contains a given search string")
 regen_text_parser.add_argument("search",help="Search string (case-insensitive) to look for in output.json text field")
@@ -38,7 +38,7 @@ regen_race_parser.add_argument("race_id",type=int,help="DisplayRaceID to regener
 regen_race_parser.add_argument("sex_id",type=int,nargs="?",help="Optional DisplaySexID (0 = male, 1 = female)")
 
 regen_voice_parser = subparsers.add_parser("regenerate_all_with_voice",help="Regenerate all NPCs that use a specific voice")
-regen_voice_parser.add_argument("voice",type=str,help="Voice identifier to search for in voice-clone-map.json")
+regen_voice_parser.add_argument("voice",type=str,help="Local WAV path to search for in voice-clone-map.json")
 
 args = parser.parse_args()
 

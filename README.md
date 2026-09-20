@@ -36,10 +36,11 @@ Go to [releases](https://github.com/mrthinger/wow-voiceover/releases) if you're 
 
 ### VS Code Dev Container
 
-For a preconfigured Python 3.10 environment with project dependencies, PyTorch,
-TorchAudio, FFmpeg and Playwright Chromium, use **Dev Containers: Reopen in Container**.
+For a preconfigured Python 3.10 environment with project dependencies,
+FFmpeg and Playwright Chromium, use **Dev Containers: Reopen in Container**.
 See [.devcontainer/README.md](.devcontainer/README.md) for verification commands,
-optional GPU configuration and the separate database/TTS service setup.
+the separate database/TTS service setup. TTS runs exclusively in the external
+webservice; this project does not install a local model runtime.
 
 This guide will walk you through setting up the complete development environment for wow-voiceover generation.
 
@@ -144,7 +145,16 @@ Refer to [lib-tts documentation](https://github.com/Ringert/lib-tts) for detaile
 
 ### Step 7: Create Voice Clone Map
 
-The voice clone map defines which voice sample to use for each NPC:
+The voice clone map assigns each NPC name to a local WAV file (including `.wav`).
+Relative paths resolve from the repository root; absolute paths are also accepted.
+For example: `"Jitters": "wow-voiceover/de/human/m-human-15.wav"`.
+Download the recordings into these paths before generation. Existing assignments
+were preserved and their `.wav` extensions added; no recordings were downloaded.
+The local `wow-voiceover/` reference directory is ignored by Git.
+
+The legacy generator below selects existing WAV files from
+`AI_VoiceOverData_Vanilla/generated/input-sounds/{quests,gossip}/` using the exports.
+It replaces assignments randomly; do not run it just to migrate an existing map:
 
 ```bash
 cd ~/wow-voiceover  # Return to wow-voiceover directory
@@ -153,7 +163,10 @@ source .venv/bin/activate
 python cli-main.py create_voice_clone_map
 ```
 
-This creates/updates `voice-clone-map.json` with voice assignments.
+This creates/updates `voice-clone-map.json` with existing WAV paths.
+Alternatively, `python create-voice-clone-map.py de` selects `.wav` files from
+`sound-input/de/<race>/`, using `m`/`f` filename prefixes and `output.json`.
+Both generators overwrite the map; use them only for intentional reassignment.
 
 ### Step 8: Generate Audio Files
 
@@ -231,7 +244,7 @@ python cli-main.py regenerate_by_text "Abenteurer"
 python cli-main.py regenerate_by_race 1 0  # Human Male
 
 # Switch voice clone for NPCs
-python cli-main.py switch_voice quests/70-accept gossip/abc123
+python cli-main.py switch_voice wow-voiceover/de/human/m-human-15.wav sound-input/de/human/m-demo.wav
 
 # Extract model data
 python cli-main.py extract_model_data
@@ -273,18 +286,41 @@ environment variables take precedence over `.env`. Restart the CLI after edits.
 The file is loaded from the repository root regardless of the working directory.
 `.env` stays local and ignored by Git; `.env.example` provides the template.
 
+Model selection, model files and GPU settings belong to the webservice.
+The CLI uploads the local WAV reference with every synthesis request and
+explicitly sends synthesis parameters in the JSON `request` multipart field in
+`tts_cli/tts_cloning.py`. For payload changes, consult `/user-manual.md` on
+the configured TTS service and its linked `/openapi.json`. Pitch is currently
+reserved by the API. `ref_text` is optional and omitted because the CLI has no
+reference transcript; depending on the server adapter, this may trigger transcription.
+
 ### API Endpoints Used
 
 **POST** `/api/v1/synthesize`
 - Generates audio from text
-- Request body:
+- Multipart body: text field `request` contains the JSON below, and file field
+  `file` contains the local WAV (`audio/wav`). Do not include `voice_id`.
   ```json
   {
     "text": "Your text here",
-    "voice_id": "quests/70-accept",
-    "language": "german"
+    "language": "de",
+    "speed": 1.0,
+    "pitch": 1.0,
+    "temperature": 0.6,
+    "top_p": 0.65,
+    "top_k": 45,
+    "repetition_penalty": 10.0,
+    "length_penalty": 0.65,
+    "gpt_cond_len": 30,
+    "gpt_cond_chunk_len": 4,
+    "max_ref_len": 30,
+    "sound_norm_refs": false
   }
   ```
+- Reference limit: 10 MiB per RIFF/WAVE file (including WAVE_FORMAT_EXTENSIBLE);
+  request field: 1 MiB; total multipart body: 11 MiB. References are temporary
+  on the service and are not registered as voices. The CLI checks the extension,
+  size and RIFF/WAVE header before sending; the service validates audio decoding.
 - Response:
   ```json
   {
@@ -295,8 +331,9 @@ The file is loaded from the repository root regardless of the working directory.
   }
   ```
 
-**GET** `/api/v1/{file_path}`
-- Downloads the generated audio file
+**GET** `/api/v1/sounds/{file_id}`
+- Downloads the generated audio file using the response `file_id`, as required
+  by the current service manual; do not use its `file_path` value.
 
 ---
 
@@ -355,7 +392,7 @@ pip install -r requirements.txt
 ### Audio Generation Fails
 
 1. Check that voice samples exist in lib-tts
-2. Verify voice-clone-map.json has correct voice_id references
+2. Verify voice-clone-map.json points to existing local WAV files (including the extension)
 3. Check lib-tts logs for errors during synthesis
 
 ---

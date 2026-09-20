@@ -16,11 +16,11 @@ sources:
     resource: "../sources/repository-baseline.md"
 generated:
   by: codex/gpt-6-astra
-  at: 2026-09-20T00:35:08Z
+  at: 2026-09-20T08:35:43Z
 ---
 # Arbeitsumgebung und Projektbetrieb
 
-Die [lokale Entwicklungsregel](../standards/local-development.md) trennt feste Arbeitsbasis und Produktbetrieb. Hier ist die Arbeitsbasis der vorhandene Python-3.10-Devcontainer. Er enthält Projektbibliotheken und Entwicklungswerkzeuge, aber kein Docker-in-Docker. Die [Projektanleitung](../project/local-development.md) ist für konkrete Pfade und Befehle maßgeblich.
+Die [lokale Entwicklungsregel](../standards/local-development.md) trennt feste Arbeitsbasis und Produktbetrieb. Hier ist die Arbeitsbasis der vorhandene Python-3.10-Devcontainer. Er enthält Projektbibliotheken und Entwicklungswerkzeuge, aber kein Docker-in-Docker. Synthese und Modellbetrieb finden ausschließlich im separaten TTS-Webservice statt; die Arbeitsumgebung benötigt dafür weder Modellbibliotheken noch GPU-Konfiguration. Die [Projektanleitung](../project/local-development.md) ist für konkrete Pfade und Befehle maßgeblich.
 
 ## Start und Zugriff
 

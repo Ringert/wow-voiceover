@@ -4,15 +4,14 @@ Open this repository in VS Code and run **Dev Containers: Reopen in Container**.
 Docker Desktop must be running with Linux containers (on Windows: WSL2 backend).
 The first build downloads the Python packages and Chromium and can take several minutes.
 
-The image provides Python 3.10, the repository's `requirements.txt`, PyTorch and
-TorchAudio 2.6.0 (CPU), FFmpeg/ffprobe, libsndfile, a MySQL client, build tools and
+The image provides Python 3.10, the repository's `requirements.txt`,
+FFmpeg/ffprobe, a MySQL client, build tools and
 Playwright Chromium. The writable environment is `/opt/venv`; no activation is
 needed. Python, Pylance and debugger extensions are declared for VS Code.
 
 ```bash
 python -m pip check
 python cli-main.py --help
-python -c "import torch, torchaudio; print(torch.__version__); print('CUDA:', torch.cuda.is_available())"
 ```
 
 After changing `requirements.txt`, run **Dev Containers: Rebuild Container**.
@@ -56,33 +55,23 @@ https://developers.openai.com/de-DE/docs/config-file/environment-variables
 
 This checkout contains the CLI and WoW addon. The voice-cloning service lives in
 the separate `lib-tts` repository. Its model-specific dependencies and model
-weights are not installed here. PyTorch is provided as a development baseline;
-compatibility with a particular cloning model still needs to be established.
+weights belong exclusively to that service. This project only sends HTTP
+requests and downloads generated audio; it needs no local model runtime or GPU.
+After upgrading from the previous image, run **Dev Containers: Rebuild Container**
+to remove the previously installed model runtime from the development environment.
 
 Opening the container does not start services, download models, import a database,
 or run audio generation. Start the existing MySQL Compose project explicitly
 from a **host terminal** with `docker compose up -d`. Docker is not required
 inside this development container.
 
-The current application code hardcodes MySQL at `0.0.0.0:3306` and the TTS service
-at `localhost:8000`; these addresses refer to the development container itself.
-The code also currently ignores the MySQL values in `.env`. Before using services
-on the Docker Desktop host, those application settings must be made configurable
-and pointed to `host.docker.internal`. This container setup alone does not make
-the existing end-to-end generation flow operational.
+Configure the TTS service through `TTS_PROTOCOL`, `TTS_HOST` and `TTS_PORT`
+in the repository-root `.env`. For a service published on Docker Desktop's host
+port 8000, use `http`, `host.docker.internal` and `8000`. Check its availability
+with `curl --fail http://host.docker.internal:8000/health`.
+MySQL remains hardcoded at `0.0.0.0:3306`; its `.env` values are currently ignored.
+A healthy TTS service alone does not verify the database or full generation flow.
 
 Only login callback port 1455 is automatically forwarded. For a future webservice
 running inside this container, bind it to `0.0.0.0` and explicitly forward its
 port through VS Code's **Ports** panel.
-
-## Optional NVIDIA GPU
-
-The default configuration also opens on machines without NVIDIA hardware.
-For an NVIDIA host with working Docker GPU passthrough, change the build argument
-`TORCH_INDEX_URL` in `devcontainer.json` to
-`https://download.pytorch.org/whl/cu124`, add the top-level property
-`"runArgs": ["--gpus=all"]`, and rebuild. Verify `torch.cuda.is_available()`
-inside the rebuilt container. GPU operation has not been assumed or verified.
-Newer GPUs may need a newer matching Torch/TorchAudio and CUDA combination.
-
-Version combinations: https://docs.pytorch.org/get-started/previous-versions/

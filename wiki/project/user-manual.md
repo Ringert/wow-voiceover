@@ -18,7 +18,7 @@ sources:
     resource: "../../tts_cli/tts_cloning.py"
 generated:
   by: codex/gpt-6-astra
-  at: 2026-09-20T00:35:08Z
+  at: 2026-09-20T09:31:03Z
 ---
 # Benutzerhandbuch
 
@@ -52,7 +52,7 @@ Die Belegung ist konfigurierbar. Die vorhandenen Befehle **Play Audio**, **Pause
 
 ## Audio bearbeiten
 
-Voraussetzung sind die [Entwicklungsumgebung](local-development.md), eine erreichbare passende Datenbank, ein betriebsbereiter `lib-tts`-Dienst mit Referenzstimmen und zusammenpassende JSON-Dateien. Die Befehle laufen aus dem Repository-Root. Die globale Sprachoption steht vor dem Modus; aktuell wird die TTS-Anfrage unabhängig davon auf Deutsch gesendet.
+Voraussetzung sind die [Entwicklungsumgebung](local-development.md), eine erreichbare passende Datenbank, ein betriebsbereiter `lib-tts`-Dienst und lokale WAV-Referenzdateien und zusammenpassende JSON-Dateien. Die Befehle laufen aus dem Repository-Root. Die globale Sprachoption steht vor dem Modus; aktuell wird die TTS-Anfrage unabhängig davon auf Deutsch gesendet.
 
 Für eine gezielte Quest-Regenerierung, beispielsweise bei bewusst ausgewählter Quest-ID 70:
 
@@ -73,9 +73,27 @@ TTS_HOST=localhost
 TTS_PORT=8000
 ```
 
-`TTS_PROTOCOL` ist `http` oder `https`. `TTS_HOST` enthält nur den Hostnamen oder die IP-Adresse, ohne Protokoll, Port oder Pfad. `TTS_PORT` ist der Port des Dienstes. Beispielsweise ergeben `https`, `tts.example.org` und `8443` die Basisadresse `https://tts.example.org:8443`. Synthese und Audiodownload verwenden dieselbe Adresse.
+`TTS_PROTOCOL` ist `http` oder `https`. `TTS_HOST` enthält nur den Hostnamen oder die IP-Adresse, ohne Protokoll, Port oder Pfad. `TTS_PORT` ist der Port des Dienstes. Beispielsweise ergeben `https`, `tts.example.org` und `8443` die Basisadresse `https://tts.example.org:8443`. Synthese und Audiodownload verwenden dieselbe Adresse. Es wird ausschließlich dieser Webservice genutzt. Modellwahl und Modellinstallation werden dort verwaltet. Die CLI sendet die lokale WAV-Datei direkt als Multipart-Dateifeld `file`; das Textfeld `request` enthält Text, Sprache und explizite Syntheseparameter, ohne `voice_id`. Diese stehen im `payload` von `tts_cli/tts_cloning.py`; vor Änderungen die aktuelle Anleitung unter `/user-manual.md` auf dem konfigurierten Dienst und das verlinkte `/openapi.json` lesen. `pitch` ist derzeit ohne Wirkung. Ein Referenztranskript (`ref_text`) wird nicht mitgesendet.
 
 Fehlende Werte verwenden die gezeigten Defaults; bereits gesetzte Umgebungsvariablen haben Vorrang. Starte die CLI nach Änderungen neu. `.env` bleibt lokal und wird von Git ignoriert. Im Devcontainer bezeichnet `localhost` den Container selbst; für einen externen Dienst trage dessen erreichbaren Host ein.
+
+## Lokale Referenzstimmen verwalten
+
+`voice-clone-map.json` ordnet NPC-Namen WAV-Dateipfade einschließlich Endung zu:
+
+```json
+{
+  "Jitters": "wow-voiceover/de/human/m-human-15.wav"
+}
+```
+
+Relative Pfade beginnen im Repository-Root; absolute Pfade sind ebenfalls möglich. Die bestehende Map behält ihre Zuordnungen und ergänzt `.wav`. Die Dateien sind noch herunterzuladen und müssen vor der Generierung unter den eingetragenen Pfaden liegen. Der lokale Referenzordner `wow-voiceover/` ist von Git ignoriert. Eine neue zufällige Map ist für diese Umstellung nicht nötig.
+
+Jede Synthese lädt die zugeordnete WAV neu hoch; auf dem Server muss keine Voice-ID angelegt werden. Erlaubt sind RIFF/WAVE-Dateien bis 10 MiB, einschließlich WAVE_FORMAT_EXTENSIBLE. Fehlende Dateien, falsche Endungen, ungültige RIFF/WAVE-Kennung oder Überschreitung der Dateigröße führen vor dem HTTP-Aufruf zu einem Fehler. Die vollständige Audiovalidierung erfolgt im Webservice. Bereits vorhandene Ausgabedateien werden weiterhin übersprungen, außer bei Regenerierung.
+
+`switch_voice <alter.wav> <neuer.wav>` ersetzt passende Pfade in der Map und regeneriert die betroffenen NPCs. Die neue Datei wird vor dem Speichern der Map geprüft. `regenerate_all_with_voice <pfad.wav>` regeneriert alle zugeordneten NPCs. Beide vergleichen aufgelöste Pfade, sodass relative und entsprechende absolute Angaben dieselbe Referenz finden.
+
+Für eine bewusst neue Zufallszuordnung wählt `python create-voice-clone-map.py de` WAV-Dateien aus `sound-input/de/<race>/` mit `m`/`f`-Präfix anhand von `output.json`. Die Dateiendung bleibt erhalten. Der ältere CLI-Modus `create_voice_clone_map` nutzt die Exporte und vorhandene WAVs unter `AI_VoiceOverData_Vanilla/generated/input-sounds/{quests,gossip}/`. Beide ändern die Map; fehlende WAV-Kandidaten im älteren Modus verhindern das Überschreiben.
 
 ## CLI nachschlagen
 
@@ -85,7 +103,7 @@ Fehlende Werte verwenden die gezeigten Defaults; bereits gesetzte Umgebungsvaria
 | `fix-de` | Deutsche Textkorrekturen in bestehenden Datenbanktabellen ausführen |
 | `interactive` | Alle abgefragten Dialoge vorverarbeiten und vertonen; trotz Name derzeit kein Auswahlassistent |
 | `gen_lookup_tables` | MySQL abfragen, `output.json`, Lua-Lookups und MP3-Längen aktualisieren; keine Synthese |
-| `create_voice_clone_map` | Aus `sql.json`, `gossip.json`, `sound_length.json` eine neue zufällige Referenzzuordnung erzeugen; überschreibt die Map |
+| `create_voice_clone_map` | Aus `sql.json`, `gossip.json`, `sound_length.json` und vorhandenen lokalen WAVs eine neue zufällige Pfadzuordnung erzeugen; überschreibt die Map |
 | `extract_model_data` | Aus vorhandenen Display-/Modelldaten `generated/warcraft-display-metadata.csv` erzeugen |
 | `regenerate quest <id-source>` | Einzelnen Questdialog regenerieren, z. B. `70-accept` |
 | `regenerate gossip <hash>` | Einzelnen Gossipdialog anhand seines bestehenden Hashes regenerieren |

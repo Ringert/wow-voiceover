@@ -10,7 +10,6 @@ MYSQL_PORT = 3306
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "wow"
 MYSQL_DATABASE = "wow"
-ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY')
 
 # Shared origin for synthesis and audio downloads.
 TTS_PROTOCOL = os.getenv("TTS_PROTOCOL", "http")

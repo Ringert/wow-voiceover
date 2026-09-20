@@ -2,10 +2,7 @@
   "name": "wow-voiceover - Python 3.10",
   "build": {
     "dockerfile": "Dockerfile",
-    "context": "..",
-    "args": {
-      "TORCH_INDEX_URL": "https://download.pytorch.org/whl/cpu"
-    }
+    "context": ".."
   },
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
