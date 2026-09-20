@@ -12,3 +12,5 @@ PyMySQL==1.0.2
 SLPP==1.2.3
 pydub==0.25.1
 autopep8==2.0.2
+mutagen==1.47.0
+playwright==1.55.0

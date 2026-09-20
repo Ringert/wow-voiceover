@@ -5,6 +5,7 @@ import hashlib
 from concurrent.futures import ThreadPoolExecutor
 import re
 from tts_cli.consts import RACE_DICT, GENDER_DICT
+from tts_cli.env_vars import TTS_BASE_URL
 from tts_cli.length_table import write_sound_length_table_lua
 from tts_cli.utils import get_first_n_words, get_last_n_words, replace_dollar_bs_with_space
 from slpp import slpp as lua
@@ -336,7 +337,7 @@ class TTSProcessor:
             text = text.strip()
             
             # Prepare request to TTS webservice
-            api_url = "http://localhost:8000/api/v1/synthesize"
+            api_url = f"{TTS_BASE_URL}/api/v1/synthesize"
             payload = {
                 "text": text,
                 "voice_id": voice_id,
@@ -363,7 +364,7 @@ class TTSProcessor:
                 raise Exception("No file_path in response")
             
             # Download the generated audio file
-            download_url = f"http://localhost:8000/api/v1{file_path}"
+            download_url = f"{TTS_BASE_URL}/api/v1{file_path}"
             audio_response = requests.get(download_url, timeout=60)
             audio_response.raise_for_status()
             

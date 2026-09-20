@@ -12,3 +12,14 @@ AI_VoiceOver/AI_VoiceOver.toc
 RELEASE
 venv
 sound-input
+
+# Local Codex tooling and private configuration
+/.codex/skills-check.json
+/.codex/skills-check.json.tmp
+/.agents/skills/
+.env.*
+!.env.example
+
+# Generated release artifacts
+/release/
+/release_notes.md

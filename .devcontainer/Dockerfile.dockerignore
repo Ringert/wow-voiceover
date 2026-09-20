@@ -1,0 +1,6 @@
+# Only the dependency manifest is needed to build the development image.
+**
+!requirements.txt
+!.devcontainer/
+!.devcontainer/Dockerfile
+!.devcontainer/Dockerfile.dockerignore

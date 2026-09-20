@@ -1,0 +1,49 @@
+{
+  "name": "wow-voiceover - Python 3.10",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "TORCH_INDEX_URL": "https://download.pytorch.org/whl/cpu"
+    }
+  },
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+  "init": true,
+  "shutdownAction": "stopContainer",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/wow-voiceover,type=bind",
+  "workspaceFolder": "/workspaces/wow-voiceover",
+  "mounts": [
+    "source=wow-voiceover-home-${devcontainerId},target=/home/vscode,type=volume"
+  ],
+  "containerEnv": {
+    "CODEX_HOME": "/home/vscode/.codex",
+    "GH_CONFIG_DIR": "/home/vscode/.config/gh"
+  },
+  "forwardPorts": [1455],
+  "portsAttributes": {
+    "1455": {
+      "label": "Codex Login Callback",
+      "onAutoForward": "silent",
+      "requireLocalPort": true
+    }
+  },
+  "otherPortsAttributes": { "onAutoForward": "ignore" },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "openai.chatgpt",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy"
+      ],
+      "settings": {
+        "files.eol": "\n",
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "python.defaultInterpreterPath": "/opt/venv/bin/python",
+        "remote.autoForwardPorts": false,
+        "remote.restoreForwardedPorts": false
+      }
+    }
+  }
+}

@@ -13,12 +13,33 @@ Contribute voices on [allvoice.ai](https://allvoice.ai) so I can give each NPC a
 - CLI uses data fetched from a local MySQL database
 - TTS generation via [lib-tts](https://github.com/Ringert/lib-tts) webservice
 
+## Project wiki and Codex workflow
+
+The [project wiki](wiki/index.md) documents this fork's current implementation,
+setup and known limitations. Start with the [overview](wiki/overview.md),
+[development guide](wiki/project/local-development.md),
+[user manual](wiki/project/user-manual.md) and
+[GitHub workflow](wiki/project/github-workflow.md).
+[AGENTS.md](AGENTS.md) defines the shared standards and seven Codex roles adopted
+from [Codex-Projektvorlage](https://github.com/Ringert/Codex-Projektvorlage).
+
+The wiki records corrections to the older setup guide below: MySQL settings in
+`.env` are currently ignored, TTS uses a configurable address and a fixed German payload,
+and `gen_lookup_tables` creates lookup tables rather than synthesizing audio.
+
 ## Below is for developers only
 Go to [releases](https://github.com/mrthinger/wow-voiceover/releases) if you're looking to install the addon.
 
 ---
 
 ## Setup Guide for New Developers
+
+### VS Code Dev Container
+
+For a preconfigured Python 3.10 environment with project dependencies, PyTorch,
+TorchAudio, FFmpeg and Playwright Chromium, use **Dev Containers: Reopen in Container**.
+See [.devcontainer/README.md](.devcontainer/README.md) for verification commands,
+optional GPU configuration and the separate database/TTS service setup.
 
 This guide will walk you through setting up the complete development environment for wow-voiceover generation.
 
@@ -87,7 +108,7 @@ pip install -r requirements.txt
 # Copy environment configuration
 cp .env.example .env
 
-# Edit .env if needed (default values work with docker-compose)
+# Edit .env for TTS; MySQL settings are currently hard-coded in tts_cli/env_vars.py
 # nano .env
 
 # Start MySQL container
@@ -117,7 +138,7 @@ cd lib-tts
 # 4. Starting the webservice on port 8000
 ```
 
-**Important**: The TTS webservice must be running on `http://localhost:8000` before you can generate audio files.
+**Important**: The TTS webservice must be reachable at the address configured in `.env` (default: `http://localhost:8000`) before you can generate audio files.
 
 Refer to [lib-tts documentation](https://github.com/Ringert/lib-tts) for detailed setup instructions.
 
@@ -139,11 +160,11 @@ This creates/updates `voice-clone-map.json` with voice assignments.
 Now you can generate voiceover audio files:
 
 ```bash
-# Generate all audio files for German (deDE)
-python cli-main.py gen_lookup_tables --lang=deDE
+# Generate German audio (requires MySQL, voice map and lib-tts)
+python cli-main.py --lang deDE interactive
 
-# Or use interactive mode
-python cli-main.py interactive
+# Then update lookup tables and measured audio durations
+python cli-main.py --lang deDE gen_lookup_tables
 ```
 
 The generated audio files will be saved in:
@@ -192,7 +213,7 @@ python main.py  # Or whatever command starts the service
 python cli-main.py interactive
 
 # Generate lookup tables for a specific language
-python cli-main.py gen_lookup_tables --lang=deDE
+python cli-main.py --lang deDE gen_lookup_tables
 
 # Regenerate audio for a specific quest
 python cli-main.py regenerate quest 70-accept
@@ -237,7 +258,20 @@ python cli-main.py extract_model_data
 
 ## TTS Webservice Configuration
 
-The CLI expects the TTS webservice to be available at `http://localhost:8000`.
+Configure the TTS service in `.env` at the repository root:
+
+```dotenv
+TTS_PROTOCOL=http
+TTS_HOST=localhost
+TTS_PORT=8000
+```
+
+Use `http` or `https` for the protocol, and a hostname or IP address without a
+protocol, port or path for `TTS_HOST`. Both synthesis and audio downloads use
+these settings. Missing settings default to `http://localhost:8000`; existing
+environment variables take precedence over `.env`. Restart the CLI after edits.
+The file is loaded from the repository root regardless of the working directory.
+`.env` stays local and ignored by Git; `.env.example` provides the template.
 
 ### API Endpoints Used
 
@@ -290,8 +324,8 @@ wow-voiceover/
 ### TTS Webservice Connection Error
 
 If you see errors like `Connection refused` or `unable to generate audio via webservice`:
-1. Ensure lib-tts webservice is running: `http://localhost:8000`
-2. Test the service: `curl http://localhost:8000/health` (if available)
+1. Ensure lib-tts is reachable at the address configured in `.env` (default: `http://localhost:8000`)
+2. Test the configured address, e.g. `curl http://localhost:8000/health` with the defaults (if available)
 3. Check lib-tts logs for errors
 
 ### Database Connection Issues

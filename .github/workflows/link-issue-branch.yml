@@ -1,0 +1,234 @@
+name: Provision Linked Story Branch
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Story issue number to reconcile
+        required: true
+        type: number
+
+concurrency:
+  group: linked-issue-branch-${{ github.repository_id }}-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  provision-linked-branch:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'implementation-ready'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create and verify the native Development link
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PROJECT_KEY: ${{ vars.PROJECT_KEY || 'WOWVO' }}
+        with:
+          script: |
+            const PROJECT_KEY = process.env.PROJECT_KEY;
+            const issueNumber = context.eventName === 'workflow_dispatch'
+              ? Number(context.payload.inputs?.issue_number)
+              : context.payload.issue?.number;
+            const branch = `issue/${PROJECT_KEY}-${issueNumber}`;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const qualifiedBranch = `refs/heads/${branch}`;
+
+            if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) {
+              core.setFailed('The labeled issue has no valid issue number.');
+              return;
+            }
+
+            if (!/^[A-Z][A-Z0-9]*$/.test(PROJECT_KEY || '')) {
+              core.setFailed(
+                'PROJECT_KEY must start with an uppercase letter and contain only uppercase letters and digits.'
+              );
+              return;
+            }
+
+            const queryState = () => github.graphql(
+              `query(
+                $owner: String!
+                $repo: String!
+                $number: Int!
+                $qualifiedBranch: String!
+              ) {
+                repository(owner: $owner, name: $repo) {
+                  id
+                  defaultBranchRef {
+                    name
+                    target { oid }
+                  }
+                  issue(number: $number) {
+                    id
+                    state
+                    milestone { title }
+                    parent {
+                      number
+                      milestone { title }
+                      parent { number }
+                    }
+                    labels(first: 100) { nodes { name } }
+                    linkedBranches(first: 100) {
+                      nodes {
+                        ref {
+                          name
+                          target { oid }
+                        }
+                      }
+                    }
+                    closedByPullRequestsReferences(
+                      first: 100
+                      includeClosedPrs: true
+                    ) {
+                      nodes {
+                        number
+                        headRefName
+                      }
+                    }
+                  }
+                  branch: ref(qualifiedName: $qualifiedBranch) {
+                    target { oid }
+                  }
+                }
+              }`,
+              { owner, repo, number: issueNumber, qualifiedBranch }
+            );
+
+            const isLinked = (issue) => issue.linkedBranches.nodes.some(
+              (node) => node.ref?.name === branch
+            );
+            const hasLinkedPullRequest = (issue) =>
+              issue.closedByPullRequestsReferences.nodes.some(
+                (pullRequest) => pullRequest.headRefName === branch
+              );
+            let state = await queryState();
+            const repository = state.repository;
+            const issue = repository.issue;
+            const baseRef = repository.defaultBranchRef?.name;
+            const baseOid = repository.defaultBranchRef?.target?.oid;
+
+            if (!issue) {
+              core.setFailed(`Issue #${issueNumber} does not exist.`);
+              return;
+            }
+
+            if (issue.state !== 'OPEN') {
+              core.setFailed(`Issue #${issueNumber} is not open.`);
+              return;
+            }
+
+            if (!issue.labels.nodes.some((label) => label.name === 'implementation-ready')) {
+              core.setFailed(`Story #${issueNumber} is no longer implementation-ready.`);
+              return;
+            }
+
+            if (
+              !issue.milestone?.title ||
+              !issue.parent?.number ||
+              issue.parent.milestone?.title !== issue.milestone.title ||
+              issue.parent.parent?.number
+            ) {
+              core.setFailed(
+                `Issue #${issueNumber} must be a story directly below an epic in the same milestone.`
+              );
+              return;
+            }
+
+            const unexpectedBranches = issue.linkedBranches.nodes
+              .map((node) => node.ref?.name)
+              .filter((name) => name && name !== branch);
+            const unexpectedPullRequests = issue.closedByPullRequestsReferences.nodes
+              .filter((pullRequest) => pullRequest.headRefName !== branch);
+
+            if (unexpectedBranches.length > 0 || unexpectedPullRequests.length > 0) {
+              core.setFailed(
+                `Story #${issueNumber} already has another linked branch or pull request.`
+              );
+              return;
+            }
+
+            if (!baseRef || !baseOid) {
+              core.setFailed('The repository must have an existing default branch.');
+              return;
+            }
+
+            if (isLinked(issue) || hasLinkedPullRequest(issue)) {
+              core.info(
+                `Story #${issueNumber} already has ${branch} linked in Development.`
+              );
+              return;
+            }
+
+            if (repository.branch) {
+              core.setFailed(
+                `Branch ${branch} already exists without the required native issue link.`
+              );
+              return;
+            }
+
+            const result = await github.graphql(
+              `mutation(
+                $issueId: ID!
+                $oid: GitObjectID!
+                $name: String!
+                $repositoryId: ID!
+              ) {
+                createLinkedBranch(input: {
+                  issueId: $issueId
+                  oid: $oid
+                  name: $name
+                  repositoryId: $repositoryId
+                }) {
+                  linkedBranch {
+                    ref {
+                      name
+                      target { oid }
+                    }
+                  }
+                }
+              }`,
+              {
+                issueId: issue.id,
+                oid: baseOid,
+                name: branch,
+                repositoryId: repository.id,
+              }
+            );
+            const linkedBranch = result.createLinkedBranch?.linkedBranch;
+
+            if (
+              linkedBranch?.ref?.name !== branch ||
+              linkedBranch.ref.target?.oid !== baseOid
+            ) {
+              core.setFailed(`GitHub did not create the linked branch ${branch}.`);
+              return;
+            }
+
+            for (let attempt = 1; attempt <= 6; attempt += 1) {
+              await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+              state = await queryState();
+
+              if (
+                state.repository.branch &&
+                (
+                  isLinked(state.repository.issue) ||
+                  hasLinkedPullRequest(state.repository.issue)
+                )
+              ) {
+                core.info(
+                  `Created ${branch} from ${baseRef} and linked it to story #${issueNumber}.`
+                );
+                return;
+              }
+            }
+
+            core.setFailed(
+              `Postcondition failed: ${branch} is not linked to story #${issueNumber}.`
+            );

@@ -1,0 +1,11 @@
+[features]
+goals = true
+multi_agent = true
+
+[agents]
+enabled = true
+# Sechs offene Fachrollenthreads zum Wiederverwenden ihres Kontexts.
+# Offen bedeutet nicht aktiv: höchstens eine Rolle arbeitet, gemäß AGENTS.md.
+# Der Orchestrator läuft im Hauptchat; die Auswahl erfolgt als Agent aus agents/orchestrator.toml.
+max_concurrent_threads_per_session = 6
+interrupt_message = true

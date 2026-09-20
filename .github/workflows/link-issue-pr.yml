@@ -1,0 +1,181 @@
+name: Verify Linked Story PR
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  verify-story-link:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Story PR link
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PROJECT_KEY: ${{ vars.PROJECT_KEY || 'WOWVO' }}
+        with:
+          script: |
+            const PROJECT_KEY = process.env.PROJECT_KEY;
+            if (!/^[A-Z][A-Z0-9]*$/.test(PROJECT_KEY || '')) {
+              core.setFailed(
+                'PROJECT_KEY must start with an uppercase letter and contain only uppercase letters and digits.'
+              );
+              return;
+            }
+            const pullRequest = context.payload.pull_request;
+            const branch = pullRequest.head.ref;
+            const body = pullRequest.body || '';
+
+            const match = /^issue\/([A-Z][A-Z0-9]*)-([1-9]\d*)$/.exec(branch);
+
+            if (!match) {
+              core.setFailed(
+                `Invalid Story branch "${branch}". Expected issue/${PROJECT_KEY}-NUMBER.`
+              );
+              return;
+            }
+
+            const project = match[1];
+            const storyNumber = Number(match[2]);
+
+            if (
+              !Number.isSafeInteger(storyNumber) ||
+              project !== PROJECT_KEY
+            ) {
+              core.setFailed(`Unsupported Story branch ${branch}.`);
+              return;
+            }
+
+            const closingReferences = [
+              ...body.matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+((?:[\w.-]+\/[\w.-]+)?#[1-9]\d*|https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/[1-9]\d*)\b/gi),
+            ];
+            const epicReferences = [
+              ...body.matchAll(/\bRefs\s*:?\s+#([1-9]\d*)\b/gi),
+            ];
+
+            if (
+              closingReferences.length !== 1 ||
+              closingReferences[0][1] !== '#'+storyNumber
+            ) {
+              core.setFailed('PR body must close exactly its Story as "Closes #'+storyNumber+'".');
+              return;
+            }
+
+            if (/\b(?:Implements|Documents)\s*:?\s*#/i.test(body)) {
+              core.setFailed('Keep technical steps and documentation in this Story PR; remove Implements/Documents references.');
+              return;
+            }
+
+            if (epicReferences.length !== 1) {
+              core.setFailed(
+                'PR body must contain exactly one parent Epic reference as "Refs #<number>".'
+              );
+              return;
+            }
+
+            const referencedEpicNumber = Number(epicReferences[0][1]);
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const isLinked = (state) => state.repository.issue
+              ?.closedByPullRequestsReferences.nodes
+              .some((pullRequestNode) => pullRequestNode.number === pullRequest.number);
+            const queryState = () => github.graphql(
+              `query($owner: String!, $repo: String!, $issue: Int!, $pr: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  defaultBranchRef { name }
+                  issue(number: $issue) {
+                    milestone { title }
+                    parent {
+                      number
+                      milestone { title }
+                      parent { number }
+                    }
+                    closedByPullRequestsReferences(
+                      first: 100
+                      includeClosedPrs: true
+                    ) {
+                      nodes { number }
+                    }
+                  }
+                  pullRequest(number: $pr) {
+                    headRefName
+                    baseRefName
+                  }
+                }
+              }`,
+              { owner, repo, issue: storyNumber, pr: pullRequest.number }
+            );
+
+            for (let attempt = 1; attempt <= 6; attempt += 1) {
+              const state = await queryState();
+              const repository = state.repository;
+
+              if (!repository.issue || !repository.pullRequest) {
+                core.setFailed('The issue or pull request no longer exists.');
+                return;
+              }
+
+              if (!repository.defaultBranchRef?.name) {
+                core.setFailed('The repository must have an existing default branch.');
+                return;
+              }
+
+              if (
+                !repository.issue.milestone?.title ||
+                !repository.issue.parent?.number ||
+                repository.issue.parent.milestone?.title !==
+                  repository.issue.milestone.title ||
+                repository.issue.parent.parent?.number
+              ) {
+                core.setFailed(
+                  `Issue #${storyNumber} must be a direct Story child of an Epic in the same milestone.`
+                );
+                return;
+              }
+
+              if (repository.issue.parent.number !== referencedEpicNumber) {
+                core.setFailed(
+                  `PR body must reference parent Epic #${repository.issue.parent.number}.`
+                );
+                return;
+              }
+
+              const otherPullRequest = repository.issue
+                .closedByPullRequestsReferences.nodes
+                .find((pullRequestNode) => pullRequestNode.number !== pullRequest.number);
+
+              if (otherPullRequest) {
+                core.setFailed(
+                  `Story #${storyNumber} is already linked to PR #${otherPullRequest.number}.`
+                );
+                return;
+              }
+
+              if (
+                repository.pullRequest.headRefName !== branch ||
+                repository.pullRequest.baseRefName !== repository.defaultBranchRef.name
+              ) {
+                core.setFailed(`PR #${pullRequest.number} must merge ${branch} into ${repository.defaultBranchRef.name}.`);
+                return;
+              }
+
+              if (isLinked(state)) {
+                core.info(
+                  `PR #${pullRequest.number} is linked to Story #${storyNumber} and targets ${repository.defaultBranchRef.name}.`
+                );
+                return;
+              }
+
+              await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+            }
+
+            core.setFailed(
+              `PR #${pullRequest.number} is not natively linked to Story #${storyNumber}.`
+            );
